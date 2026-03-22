@@ -34,7 +34,7 @@ else:
 
     with t3:
         pw = st.text_input("Admin Password", type="password")
-        if pw == "smash2026":
+        if pw == "pogisiJordan":
             sel = st.selectbox("Match", sch["ID"].tolist())
             d = sch[sch["ID"]==sel].iloc[0]
             c1, c2 = st.columns(2)
@@ -48,7 +48,7 @@ else:
             if b2.button("Reset", use_container_width=True):
                 if sel in st.session_state.db: del st.session_state.db[sel]
                 st.rerun()
-        elif pw != "": st.error("Incorrect Password")
+        elif pw != "": st.error("Access Denied")
 
     with t1:
         res = {t:{"Brk":clrs.get(t,"?"),"W":0,"L":0,"Pts":0} for t in sorted(clrs.keys())}
