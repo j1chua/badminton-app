@@ -9,7 +9,8 @@ FN = "SMASH 2026 - Score Tracker.csv"
 def load_data():
     if not os.path.exists(FN): return None, {}
     df = pd.read_csv(FN)
-    m, colors = [], {}
+    m, clrs = [], {}
+    # Mapping coordinates for Courts 1-8
     cfgs = [
         {"n":"C1","r":(1,10),"c":(0,1,2,7)}, {"n":"C3","r":(13,22),"c":(12,1,2,7)},
         {"n":"C5","r":(25,34),"c":(24,1,2,7)}, {"n":"C7","r":(37,46),"c":(36,1,2,7)},
@@ -23,13 +24,19 @@ def load_data():
                 clr, tm = str(df.iloc[i,c["c"][1]]).strip().upper(), str(df.iloc[i,c["c"][0]]).strip()
                 if "|" in t1:
                     m.append({"ID":f"{c['n']} | {tm} | {t1} vs {t2}","C":c["n"],"T":tm,"T1":t1,"T2":t2,"Clr":clr})
-                    colors[t1] = colors[t2] = clr
+                    clrs[t1] = clrs[t2] = clr
             except: continue
-    return pd.DataFrame(m), colors
+    return pd.DataFrame(m), clrs
 
 st.title("🏸 SMASH 2026 Tournament Central")
 sch, clrs = load_data()
 
-if sch is None: st.error(f"Missing: {FN}")
+if sch is None: st.error(f"File {FN} not found!")
 else:
-    if 'db' not in st.session_state: st.session_
+    if 'db' not in st.session_state: st.session_state.db = {}
+    t1, t2, t3 = st.tabs(["📊 Standings", "📅 Schedule", "📝 Entry"])
+
+    with t3:
+        sel = st.selectbox("Select Match", sch["ID"].tolist())
+        d = sch[sch["ID"]==sel].iloc[0]
+        c
