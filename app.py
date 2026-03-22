@@ -2,25 +2,42 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.set_page_config(page_title="SMASH 2026", layout="wide")
+# Set page config with a light theme preference
+st.set_page_config(page_title="SMASH 2026", layout="wide", initial_sidebar_state="collapsed")
+
+# Custom CSS for "Friendly" UI
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #ffffff;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] { background-color: #e9ecef; border-bottom: 2px solid #007bff; }
+    h1, h2, h3 { color: #212529; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    div[data-testid="stExpander"] { background-color: white; border: 1px solid #dee2e6; border-radius: 8px; }
+    </style>
+    """, unsafe_allow_html=True)
+
 FN = "SMASH 2026 - Score Tracker.csv"
 
 @st.cache_data
 def load():
     if not os.path.exists(FN): return None, {}
-    # Use header=None to handle the complex layout manually
     df = pd.read_csv(FN, header=None).fillna(0)
     m, clrs, init_db = [], {}, {}
-    
-    # Left Side Courts (1, 3, 5, 7) | Right Side Courts (2, 4, 6, 8)
-    # Mapping: (Name, RowRange, ColIndices[Time, Color, T1, T2, T1_S1, T1_S2, T2_S1, T2_S2])
     cf = [
         ("C1",(2,11),(0,1,2,7,3,4,8,9)),   ("C2",(2,11),(13,14,15,20,16,17,21,22)),
         ("C3",(14,23),(0,1,2,7,3,4,8,9)),  ("C4",(14,23),(13,14,15,20,16,17,21,22)),
         ("C5",(26,35),(0,1,2,7,3,4,8,9)),  ("C6",(26,35),(13,14,15,20,16,17,21,22)),
         ("C7",(38,47),(0,1,2,7,3,4,8,9)),  ("C8",(38,47),(13,14,15,20,16,17,21,22))
     ]
-
     for n, r, c in cf:
         for i in range(r[0], r[1]):
             try:
@@ -30,8 +47,6 @@ def load():
                     mid = f"{n}|{t}|{t1}v{t2}"
                     m.append({"ID":mid,"C":n,"T":t,"T1":t1,"T2":t2,"L":l})
                     clrs[t1] = clrs[t2] = l
-                    
-                    # AUTO-LOAD SCORES FROM CSV
                     try:
                         s1, s2 = int(float(df.iloc[i,c[4]])), int(float(df.iloc[i,c[5]]))
                         s3, s4 = int(float(df.iloc[i,c[6]])), int(float(df.iloc[i,c[7]]))
@@ -47,9 +62,7 @@ sch, clrs, csv_scores = load()
 
 if sch is None: st.error("CSV Missing")
 else:
-    # Merge CSV scores with session state (Session state takes priority)
     if 'db' not in st.session_state: st.session_state.db = csv_scores
-    
     t1, t2, t3 = st.tabs(["📊 Standings", "📅 Schedule", "🔐 Entry"])
 
     with t3:
