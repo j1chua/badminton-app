@@ -10,12 +10,10 @@ SAVE_FN = "finals_data.json"
 EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"}
 ADMIN_PW = "pogisiJordan"
 
-# Persistence Logic for Finals/Admin
-def save_match(match_key, match_data):
-    current = load_finals()
-    current[match_key] = match_data
+# Persistence for Finals
+def save_finals(data):
     with open(SAVE_FN, "w") as f:
-        json.dump(current, f)
+        json.dump(data, f)
 
 def load_finals():
     if os.path.exists(SAVE_FN):
@@ -32,7 +30,7 @@ def get_rank_str(i):
     suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
     return f"{i}{suffix}"
 
-# 2. Data Loading Logic (Standings/Schedule base)
+# 2. Data Loading Logic (DO NOT TOUCH - Matches your uploaded file)
 @st.cache_data
 def load_data():
     if not os.path.exists(FN): return None, {}, {}
@@ -71,7 +69,6 @@ st.markdown("""
     .m-table th { background-color: #f0f2f6; padding: 12px; border: 1px solid #ddd; text-align: center; }
     .m-table td { padding: 10px; border: 1px solid #ddd; text-align: center; }
     .bracket-header { background-color: #000; color: #fff; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; font-weight: bold; }
-    .winner-text { color: #2e7d32; font-weight: bold; text-decoration: underline; }
     .score-badge { background: #f0f2f6; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #ddd; margin-right: 4px; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
@@ -84,14 +81,13 @@ if sch is None or sch.empty:
     st.warning("Please upload the CSV file.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
-    if 'reset_n' not in st.session_state: st.session_state.reset_n = 0
+    if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     
-    current_finals = load_finals()
     all_brackets = sorted(list(set(clrs.values())))
-    tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
+    tab1, tab2, tab3, tab_view, tab_admin = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
-    # --- TAB 1, 2, 3: KEPT EXACTLY THE SAME ---
-    with tabs[0]:
+    # --- TAB 1: STANDINGS ---
+    with tab1:
         stats = {t:{"Bracket":clrs.get(t,"?"), "Sets Won":0, "Total Pts":0} for t in sorted(clrs.keys())}
         for v in st.session_state.db.values():
             if v['t1'] in stats: stats[v['t1']]["Sets Won"] += v['w1']; stats[v['t1']]["Total Pts"] += v['p1']
@@ -103,7 +99,8 @@ else:
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
-    with tabs[1]:
+    # --- TAB 2: DAY 1 ---
+    with tab2:
         q = st.text_input("🔍 Search Day 1 Team", key="q1").lower()
         rows = []
         for _, r in sch[sch["Day"] == "Day 1"].iterrows():
@@ -113,7 +110,8 @@ else:
                 rows.append({"Time": r["T"], "Court": r["Court"], "Match": f"{r['P1']} vs {r['P2']}", "Set 1": s1, "Set 2": s2})
         st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
-    with tabs[2]:
+    # --- TAB 3: DAY 2 ---
+    with tab3:
         q2 = st.text_input("🔍 Search Day 2 Team", key="q2").lower()
         rows2 = []
         for _, r in sch[sch["Day"] == "Day 2"].iterrows():
@@ -123,58 +121,57 @@ else:
                 rows2.append({"Time": r["T"], "Court": r["Court"], "Match": f"{r['P1']} vs {r['P2']}", "Set 1": s1, "Set 2": s2})
         st.write(pd.DataFrame(rows2).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
-    # --- TAB 4: FINALS (NEW BRACKET NAV) ---
-    with tabs[3]:
-        sel_b = st.radio("Select Bracket View:", all_brackets, horizontal=True)
+    # --- TAB 4: FINALS (EDITED) ---
+    with tab_view:
+        sel_b = st.radio("Switch Bracket View:", all_brackets, horizontal=True)
         st.markdown(f'<div class="bracket-header">🏆 {sel_b} FINALS</div>', unsafe_allow_html=True)
-        def render_f(label, subk):
-            k = f"{sel_b}_{subk}"
-            d = current_finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3":False, "winner":"TBD"})
-            st.write(f"#### {label}")
-            c1, c2, c3 = st.columns([3, 2, 2])
+        def view_m(label, key_suffix):
+            k = f"{sel_b}_{key_suffix}"
+            d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0})
+            st.markdown(f"#### {label}")
+            c1, c2 = st.columns([3, 2])
             with c1:
-                st.markdown(f"<span class='{'winner-text' if d['winner']==d['t1'] and d['t1']!='TBD' else ''}'>{d['t1']}</span>", unsafe_allow_html=True)
-                st.markdown(f"<span class='{'winner-text' if d['winner']==d['t2'] and d['t2']!='TBD' else ''}'>{d['t2']}</span>", unsafe_allow_html=True)
+                st.write(f"**{d['t1']}**")
+                st.write(f"**{d['t2']}**")
             with c2:
-                if d['s1a']==0 and d['s1b']==0: st.write("*Upcoming*")
+                if d['s1a']==0 and d['s1b']==0: st.write("*Match Upcoming*")
                 else:
-                    sc = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
-                    if d.get('has_s3'): sc += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
-                    st.markdown(sc, unsafe_allow_html=True)
-            with c3: st.write(f"Winner: **{d['winner']}**")
+                    html = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
+                    if d['s3a'] != 0 or d['s3b'] != 0: html += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
+                    st.markdown(html, unsafe_allow_html=True)
             st.divider()
-        render_f("Semi-Final 1", "sf1")
-        render_f("Semi-Final 2", "sf2")
-        render_f("Championship", "fin")
+        view_m("SEMI-FINAL 1", "sf1")
+        view_m("SEMI-FINAL 2", "sf2")
+        view_m("🏆 CHAMPIONSHIP FINAL", "fin")
 
-    # --- TAB 5: ADMIN (NEW BRACKET NAV) ---
-    with tabs[4]:
-        if st.text_input("Admin Password", type="password") == ADMIN_PW:
-            adm_b = st.selectbox("Select Bracket to Manage:", all_brackets)
+    # --- TAB 5: ADMIN (EDITED) ---
+    with tab_admin:
+        pw = st.text_input("Password", type="password")
+        if pw == ADMIN_PW:
+            adm_b = st.selectbox("Select Bracket:", all_brackets)
             b_teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == adm_b])
-            st.markdown(f'<div class="bracket-header">⚙️ {adm_b} ADMINISTRATION</div>', unsafe_allow_html=True)
-            def adm_m(label, subk, p1_d, p2_d):
-                v, k = st.session_state.reset_n, f"{adm_b}_{subk}"
-                d = current_finals.get(k, {"t1":p1_d, "t2":p2_d, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False})
-                st.write(f"**{label}**")
-                c1, c2, c3, c4, c5, c6 = st.columns([2.5, 0.8, 0.8, 1.5, 0.8, 0.8])
+            def adm_m(label, key_suffix):
+                k = f"{adm_b}_{key_suffix}"
+                d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0})
+                st.write(f"### {label}")
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
                 with c1:
-                    t1 = st.selectbox(f"T1", [p1_d] + b_teams, index=0 if d['t1'] not in b_teams else b_teams.index(d['t1'])+1, key=f"t1_{k}_{v}", label_visibility="collapsed")
-                    t2 = st.selectbox(f"T2", [p2_d] + b_teams, index=0 if d['t2'] not in b_teams else b_teams.index(d['t2'])+1, key=f"t2_{k}_{v}", label_visibility="collapsed")
+                    t1 = st.selectbox(f"Team 1", ["TBD"] + b_teams, index=(["TBD"] + b_teams).index(d['t1']) if d['t1'] in (["TBD"] + b_teams) else 0, key=f"t1_{k}")
+                    t2 = st.selectbox(f"Team 2", ["TBD"] + b_teams, index=(["TBD"] + b_teams).index(d['t2']) if d['t2'] in (["TBD"] + b_teams) else 0, key=f"t2_{k}")
                 with c2:
-                    s1a, s1b = st.number_input("S1a", 0, 31, value=d['s1a'], key=f"s1a_{k}_{v}", label_visibility="collapsed"), st.number_input("S1b", 0, 31, value=d['s1b'], key=f"s1b_{k}_{v}", label_visibility="collapsed")
+                    s1a = st.number_input("S1 T1", 0, 31, d['s1a'], key=f"s1a_{k}")
+                    s1b = st.number_input("S1 T2", 0, 31, d['s1b'], key=f"s1b_{k}")
                 with c3:
-                    s2a, s2b = st.number_input("S2a", 0, 31, value=d['s2a'], key=f"s2a_{k}_{v}", label_visibility="collapsed"), st.number_input("S2b", 0, 31, value=d['s2b'], key=f"s2b_{k}_{v}", label_visibility="collapsed")
+                    s2a = st.number_input("S2 T1", 0, 31, d['s2a'], key=f"s2a_{k}")
+                    s2b = st.number_input("S2 T2", 0, 31, d['s2b'], key=f"s2b_{k}")
                 with c4:
-                    has_s3 = st.toggle("Set 3", value=d.get('has_s3', False), key=f"tg_{k}_{v}")
-                    s3a, s3b = (st.columns(2)[0].number_input("S3a", 0, 31, value=d.get('s3a', 0), key=f"s3a_{k}_{v}", label_visibility="collapsed"), st.columns(2)[1].number_input("S3b", 0, 31, value=d.get('s3b', 0), key=f"s3b_{k}_{v}", label_visibility="collapsed")) if has_s3 else (0,0)
-                
-                win = t1 if ((s1a>s1b)+(s2a>s2b)+(1 if has_s3 and s3a>s3b else 0)) >= 2 else (t2 if ((s1b>s1a)+(s2b>s2a)+(1 if has_s3 and s3b>s3a else 0)) >= 2 else "TBD")
-                if c5.button("💾 Save", key=f"sv_{k}_{v}", use_container_width=True, type="primary"):
-                    save_match(k, {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b, "has_s3": has_s3, "winner": win}); st.toast(f"{label} Saved!"); st.rerun()
-                if c6.button("🔄 Reset", key=f"rs_{k}_{v}", use_container_width=True):
-                    save_match(k, {"t1":p1_d, "t2":p2_d, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False, "winner":"TBD"}); st.session_state.reset_n += 1; st.rerun()
+                    s3a = st.number_input("S3 T1", 0, 31, d['s3a'], key=f"s3a_{k}")
+                    s3b = st.number_input("S3 T2", 0, 31, d['s3b'], key=f"s3b_{k}")
+                if st.button(f"Save {label}", key=f"btn_{k}"):
+                    st.session_state.finals[k] = {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b}
+                    save_finals(st.session_state.finals)
+                    st.success(f"{label} Saved!")
                 st.divider()
-            adm_m("Semi-Final 1", "sf1", "1st Place", "4th Place")
-            adm_m("Semi-Final 2", "sf2", "2nd Place", "3rd Place")
-            adm_m("Championship", "fin", "Winner SF1", "Winner SF2")
+            adm_m("SEMI-FINAL 1", "sf1")
+            adm_m("SEMI-FINAL 2", "sf2")
+            adm_m("🏆 CHAMPIONSHIP FINAL", "fin")
