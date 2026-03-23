@@ -113,4 +113,25 @@ else:
         q = st.text_input("🔍 Search Team Name", key="q1").lower()
         rows = []
         for _, r in sch[sch["Day"] == "Day 1"].iterrows():
-            if q in r['T1'].lower() or q in r['T2'].lower() or q in r['P1'].lower() or
+            if q in r['T1'].lower() or q in r['T2'].lower() or q in r['P1'].lower() or q in r['P2'].lower():
+                d = st.session_state.db.get(r["ID"])
+                s1, s2 = "--", "--"
+                match_display = f"{r['P1']} vs {r['P2']}"
+                if d:
+                    if (d['s1']==0 and d['s2']==0) and (d['s3']==0 and d['s4']==0):
+                        s1 = s2 = '<span class="forfeit">FORFEIT</span>'
+                    else:
+                        s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
+                        win_cls = f"win-{r['L'].lower()}"
+                        p1_tag = f'<span class="{win_cls}">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
+                        p2_tag = f'<span class="{win_cls}">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
+                        match_display = f"{p1_tag} vs {p2_tag}"
+                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": match_display, "Set 1": s1, "Set 2": s2})
+        
+        if rows:
+            sched_df = pd.DataFrame(rows).sort_values(by=["Court", "Time"])
+            st.write(sched_df.to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+
+    with main_tab3:
+        st.subheader("Day 2 Schedule")
+        st.info("The schedule for Day 2 will be available once the Day 1 matches are finalized. Stay tuned!")
