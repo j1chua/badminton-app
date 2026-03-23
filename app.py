@@ -82,7 +82,7 @@ if sch is None or sch.empty:
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     
-    # 4. Main Navigation Tabs
+    # Navigation Tabs
     main_tab1, main_tab2, main_tab3 = st.tabs([
         "📊 Standings", 
         "📅 Day 1 Schedule", 
@@ -130,8 +130,3 @@ else:
         
         if rows:
             sched_df = pd.DataFrame(rows).sort_values(by=["Court", "Time"])
-            st.write(sched_df.to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
-
-    with main_tab3:
-        st.subheader("Day 2 Schedule")
-        st.info("The schedule for Day 2 will be available once the Day 1 matches are finalized. Stay tuned!")
