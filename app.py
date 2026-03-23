@@ -60,12 +60,65 @@ def load_data():
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 3. Styling
+# 3. Styling - Re-written to prevent string errors
 st.markdown("""
 <style>
-    .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
+    .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
     .m-table th { background-color: #f0f2f6; text-align: center !important; padding: 12px; border: 1px solid #ddd; }
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .m-table tr:nth-child(even) { background-color: #f9f9f9; }
     .forfeit { color: #d32f2f; font-weight: bold; }
     .res-bold { font-weight: bold; color: #1f77b4; }
+    .winner-highlight { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🏸 SMASH 2026")
+sch, clrs, csv_db = load_data()
+
+if sch is None or sch.empty:
+    st.warning("Waiting for tournament data...")
+else:
+    if 'db' not in st.session_state: st.session_state.db = csv_db
+    tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
+
+    with tab1:
+        stats = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Sets Lost":0,"Total Pts":0} for t in sorted(clrs.keys())}
+        for v in st.session_state.db.values():
+            for i in [1,2]:
+                tm = v[f't{i}']
+                if tm in stats:
+                    stats[tm]["Sets Won"] += v[f'w{i}']; stats[tm]["Sets Lost"] += v[f'l{i}']; stats[tm]["Total Pts"] += v[f'p{i}']
+        
+        df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
+        df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
+        
+        for color in sorted(df_r["Bracket"].unique()):
+            st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
+            sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won","Total Pts"], ascending=False).reset_index(drop=True)
+            sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
+            st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+
+    with tab2:
+        day_pick = st.radio("Select Day:", ["Day 1", "Day 2"], horizontal=True)
+        search = st.text_input("🔍 Search Team Name")
+        q = search.lower() if search else ""
+        rows = []
+        for _, r in sch[sch["Day"] == day_pick].iterrows():
+            if q in r['T1'].lower() or q in r['T2'].lower() or q in r['P1'].lower() or q in r['P2'].lower():
+                d = st.session_state.db.get(r["ID"])
+                s1, s2, res_str, match_display = "--", "--", "--", f"{r['P1']} vs {r['P2']}"
+                
+                if d:
+                    if (d['s1']==0 and d['s2']==0) and (d['s3']==0 and d['s4']==0):
+                        s1 = s2 = '<span class="forfeit">FORFEIT</span>'
+                        res_str = "0 - 0"
+                    else:
+                        s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
+                        res_str = f'<span class="res-bold">{d["w1"]} - {d["w2"]}</span>'
+                        
+                        p1_styled, p2_styled = r['P1'], r['P2']
+                        if d['w1'] == 2 and d['w2'] == 0:
+                            p1_styled = f'<span class="winner-highlight">{r["P1"]}</span>'
+                        elif d['w2'] == 2 and d['w1'] == 0:
+                            p2_styled = f'<span class="
