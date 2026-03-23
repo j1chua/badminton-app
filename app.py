@@ -14,7 +14,6 @@ EMOJIS = {
 @st.cache_data
 def load():
     if not os.path.exists(FN): return None, {}, {}
-    # Read raw CSV
     df = pd.read_csv(FN, header=None).fillna("")
     m, clrs, init_db = [], {}, {}
     curr_day = "Day 1"
@@ -38,10 +37,28 @@ def load():
                     t = str(df.iloc[row_idx, c[0]]).strip()
                     e = EMOJIS.get(l, "🏸")
                     
-                    # Find Court Name
+                    # WIDER Court Finder: Searches 3 columns left/right and up to 10 rows up
                     court_label = "Court ?"
                     found = False
                     for r_search in range(row_idx, -1, -1):
-                        for col_off in range(-2, 3):
+                        for col_off in range(-3, 4):
                             check_col = c_name_col + col_off
-                            if 0 <=
+                            if 0 <= check_col < len(df.columns):
+                                val = str(df.iloc[r_search, check_col]).strip()
+                                if "COURT" in val.upper():
+                                    court_label = val
+                                    found = True
+                                    break
+                        if found: break
+                    
+                    p1, p2 = t1.replace("|", " AND "), t2.replace("|", " AND ")
+                    
+                    # FORMAT: Court 1 | 🔴 RED | 2:30 | NAME AND NAME vs NAME AND NAME
+                    mid = f"{court_label} | {e} {l} | {t} | {p1} vs {p2}"
+                    
+                    m.append({"ID":mid,"Day":curr_day,"T":t,"T1":t1,"T2":t2,"P1":p1,"P2":p2,"L":l,"Emoji":e, "Court": court_label})
+                    clrs[t1] = clrs[t2] = l
+                    
+                    try:
+                        v = [df.iloc[row_idx, col] for col in [c[4], c[5], c[6], c[7]]]
+                        s1, s2, s3, s4 =
