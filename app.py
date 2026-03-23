@@ -162,11 +162,13 @@ else:
 
             def a_m(label, suffix):
                 k = f"{sel_a}_{suffix}"
+                # If key doesn't exist, we use default "empty" state
                 d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
                 
                 c_title, c_reset = st.columns([5, 1])
                 with c_title: st.write(f"### {label}")
                 with c_reset:
+                    # Reset button now clears the saved entry AND triggers rerun to reset widgets to defaults
                     if st.button(f"🗑️ Reset", key=f"reset_{k}"):
                         if k in st.session_state.finals:
                             del st.session_state.finals[k]
@@ -175,12 +177,17 @@ else:
 
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
-                    t1 = st.selectbox(f"T1", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t1']) if d['t1'] in (["TBD"]+teams) else 0, key=f"at1_{k}")
-                    t2 = st.selectbox(f"T2", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t2']) if d['t2'] in (["TBD"]+teams) else 0, key=f"at2_{k}")
+                    t_opts = ["TBD"] + teams
+                    t1_idx = t_opts.index(d['t1']) if d['t1'] in t_opts else 0
+                    t2_idx = t_opts.index(d['t2']) if d['t2'] in t_opts else 0
+                    t1 = st.selectbox(f"T1", t_opts, index=t1_idx, key=f"at1_{k}")
+                    t2 = st.selectbox(f"T2", t_opts, index=t2_idx, key=f"at2_{k}")
                 with c2: 
-                    s1a = st.number_input("S1 T1", 0, 31, d['s1a'], key=f"as1a_{k}"); s1b = st.number_input("S1 T2", 0, 31, d['s1b'], key=f"as1b_{k}")
+                    s1a = st.number_input("S1 T1", 0, 31, int(d['s1a']), key=f"as1a_{k}")
+                    s1b = st.number_input("S1 T2", 0, 31, int(d['s1b']), key=f"as1b_{k}")
                 with c3: 
-                    s2a = st.number_input("S2 T1", 0, 31, d['s2a'], key=f"as2a_{k}"); s2b = st.number_input("S2 T2", 0, 31, d['s2b'], key=f"as2b_{k}")
+                    s2a = st.number_input("S2 T1", 0, 31, int(d['s2a']), key=f"as2a_{k}")
+                    s2b = st.number_input("S2 T2", 0, 31, int(d['s2b']), key=f"as2b_{k}")
                 
                 # Tie Logic
                 w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
@@ -189,8 +196,8 @@ else:
                 
                 with c4:
                     use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"tgl_{k}", disabled=not is_tie)
-                    s3a = st.number_input("S3 T1", 0, 31, d['s3a'], key=f"as3a_{k}", disabled=not use_s3)
-                    s3b = st.number_input("S3 T2", 0, 31, d['s3b'], key=f"as3b_{k}", disabled=not use_s3)
+                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"as3a_{k}", disabled=not use_s3)
+                    s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"as3b_{k}", disabled=not use_s3)
                 
                 if st.button(f"Save {label}", key=f"abtn_{k}"):
                     sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
