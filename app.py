@@ -70,6 +70,7 @@ st.markdown("""
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .m-table tr:nth-child(even) { background-color: #f9f9f9; }
     .forfeit { color: #d32f2f; font-weight: bold; }
+    .res-bold { font-weight: bold; color: #1f77b4; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,12 +108,26 @@ else:
         for _, r in sch[sch["Day"] == day_pick].iterrows():
             if q in r['T1'].lower() or q in r['T2'].lower() or q in r['P1'].lower() or q in r['P2'].lower():
                 d = st.session_state.db.get(r["ID"])
-                s1, s2 = "--", "--"
+                s1, s2, res_str = "--", "--", "--"
+                
                 if d:
+                    # Check for Forfeit
                     if (d['s1']==0 and d['s2']==0) and (d['s3']==0 and d['s4']==0):
                         s1 = s2 = '<span class="forfeit">FORFEIT</span>'
+                        res_str = "0 - 0"
                     else:
                         s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
-                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": f"{r['P1']} vs {r['P2']}", "Set 1": s1, "Set 2": s2})
+                        res_str = f'<span class="res-bold">{d["w1"]} - {d["w2"]}</span>'
+                
+                rows.append({
+                    "Time": r["T"], 
+                    "Court": r["Court"], 
+                    "Bracket": f"{r['Emoji']} {r['L']}", 
+                    "Match": f"{r['P1']} vs {r['P2']}", 
+                    "Set 1": s1, 
+                    "Set 2": s2,
+                    "Result (W-L)": res_str
+                })
         
-        if rows: st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+        if rows: 
+            st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
