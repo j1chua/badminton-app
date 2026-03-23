@@ -10,11 +10,10 @@ EMOJIS = {
     "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"
 }
 
-# Helper for Ranking strings with emphasis
 def get_rank_str(i):
-    if i == 1: return "<b>🥇 1st</b>"
-    if i == 2: return "<b>🥈 2nd</b>"
-    if i == 3: return "<b>🥉 3rd</b>"
+    if i == 1: return "🥇 <b>1st</b>"
+    if i == 2: return "🥈 <b>2nd</b>"
+    if i == 3: return "🥉 <b>3rd</b>"
     suffix = "th"
     if 10 <= i % 100 <= 20: suffix = "th"
     else:
@@ -28,10 +27,7 @@ def load():
     m, clrs, init_db = [], {}, {}
     curr_day = "Day 1"
     
-    blocks = [
-        ("Left", [0,1,2,7,3,4,8,9]),
-        ("Right", [13,14,15,20,16,17,21,22])
-    ]
+    blocks = [("Left", [0,1,2,7,3,4,8,9]), ("Right", [13,14,15,20,16,17,21,22])]
 
     for row_idx in range(len(df)):
         row_str = " ".join([str(x) for x in df.iloc[row_idx]]).upper()
@@ -63,4 +59,51 @@ def load():
                     clrs[t1] = clrs[t2] = l
                     
                     try:
-                        v = [df.iloc[row_idx, col] for col in [c[4], c[5], c[6], c
+                        v = [df.iloc[row_idx, col] for col in [c[4], c[5], c[6], c[7]]]
+                        s1, s2, s3, s4 = [int(float(x)) if str(x).strip() != "" else 0 for x in v]
+                        w1, w2 = (s1>s3)+(s2>s4), (s3>s1)+(s4>s2)
+                        init_db[mid] = {"s1":s1,"s2":s2,"s3":s3,"s4":s4,"t1":t1,"t2":t2,"p1":s1+s2,"p2":s3+s4,"w1":w1,"l1":w2,"w2":w2,"l2":w1}
+                    except: pass
+            except: continue
+    return pd.DataFrame(m), clrs, init_db
+
+# Custom CSS for centered headers and cells
+st.markdown("""
+<style>
+    .main-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    .main-table th { background-color: #f0f2f6; text-align: center !important; font-weight: bold; padding: 12px; border: 1px solid #ddd; }
+    .main-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
+    .main-table tr:nth-child(even) { background-color: #f9f9f9; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🏸 SMASH 2026")
+sch, clrs, csv_scores = load()
+
+if sch is None: st.error("CSV Missing")
+else:
+    if 'db' not in st.session_state: st.session_state.db = csv_scores
+    t1, t2 = st.tabs(["📊 Standings", "📅 Schedule"])
+
+    with t1:
+        res = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Sets Lost":0,"Total Pts":0} for t in sorted(clrs.keys())}
+        for v in st.session_state.db.values():
+            for i in [1,2]:
+                if v[f't{i}'] in res:
+                    res[v[f't{i}']]["Sets Won"]+=v[f'w{i}']; res[v[f't{i}']]["Sets Lost"]+=v[f'l{i}']; res[v[f't{i}']]["Total Pts"]+=v[f'p{i}']
+        
+        df_r = pd.DataFrame.from_dict(res, orient='index').reset_index().rename(columns={'index':'Team'})
+        df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
+        
+        for c in sorted(df_r["Bracket"].unique()):
+            st.subheader(f"{EMOJIS.get(c.upper(), '🏆')} {c} Bracket")
+            sub_df = df_r[df_r["Bracket"]==c].sort_values(["Sets Won","Total Pts"], ascending=False).reset_index(drop=True)
+            sub_df.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sub_df))])
+            
+            # Using custom class for the HTML table
+            html_table = sub_df.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="main-table")
+            st.write(html_table, unsafe_allow_html=True)
+
+    with t2:
+        v_day = st.radio("View Day:", ["Day 1", "Day 2"], horizontal=True)
+        q = st.text_
