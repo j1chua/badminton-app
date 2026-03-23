@@ -79,6 +79,7 @@ st.markdown("""
     [class^="win-"] { font-weight: bold; text-decoration: underline; }
     .win-black { color: black; } .win-red { color: red; } .win-green { color: green; }
     .win-purple { color: purple; } .win-white { color: grey; } .win-yellow { color: #fbc02d; }
+    .ongoing-box { background-color: #fff9c4; border: 2px dashed #fbc02d; padding: 30px; border-radius: 10px; text-align: center; font-size: 1.5em; color: #827717; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -131,7 +132,8 @@ else:
 
     # --- DAY 2 ---
     with tabs[2]:
-        st.info("🕒 **Day 2 matches will appear here once Day 1 is completed.**")
+        st.write("")
+        st.markdown('<div class="ongoing-box">🕒 Day 2 Schedule is still ongoing...</div>', unsafe_allow_html=True)
 
     # --- FINALS VIEW ---
     with tabs[3]:
@@ -164,21 +166,15 @@ else:
 
             def a_m(label, suffix):
                 match_id = f"{sel_a}_{suffix}"
-                
-                # Get the current "version" for this match. Changing this resets all widgets for this match.
                 v = st.session_state.reset_versions.get(match_id, 0)
-                
-                # Load current data or default
                 d = st.session_state.finals.get(match_id, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
                 
                 c_title, c_reset = st.columns([5, 1])
                 with c_title: st.write(f"### {label}")
                 with c_reset:
                     if st.button(f"🗑️ Reset", key=f"reset_{match_id}_{v}"):
-                        # 1. Clear the stored data
                         if match_id in st.session_state.finals:
                             del st.session_state.finals[match_id]
-                        # 2. Increment the version to force-reset widget states
                         st.session_state.reset_versions[match_id] = v + 1
                         save_finals(st.session_state.finals)
                         st.rerun()
@@ -186,7 +182,6 @@ else:
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
                     t_opts = ["TBD"] + teams
-                    # Use the 'v' in keys to ensure they reset on increment
                     t1 = st.selectbox(f"T1", t_opts, index=t_opts.index(d['t1']) if d['t1'] in t_opts else 0, key=f"t1_{match_id}_{v}")
                     t2 = st.selectbox(f"T2", t_opts, index=t_opts.index(d['t2']) if d['t2'] in t_opts else 0, key=f"t2_{match_id}_{v}")
                 with c2: 
@@ -209,9 +204,7 @@ else:
                     sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
                     sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
                     st.session_state.finals[match_id] = {
-                        "t1":t1, "t2":t2, 
-                        "s1a":s1a, "s1b":s1b, 
-                        "s2a":s2a, "s2b":s2b, 
+                        "t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, 
                         "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, 
                         "sw1":sw1, "sw2":sw2, "use_s3":use_s3
                     }
