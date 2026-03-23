@@ -75,6 +75,7 @@ st.markdown("""
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .bracket-header { color: #fff; padding: 12px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold; font-size: 1.2em;}
     .score-badge { background: #f0f2f6; padding: 4px 10px; border-radius: 5px; font-weight: bold; margin-right: 5px; border: 1px solid #ccc; }
+    .winner-banner { background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 4px; font-weight: bold; border: 1px solid #2e7d32; display: inline-block; font-size: 0.85em; }
     [class^="win-"] { font-weight: bold; text-decoration: underline; }
     .win-black { color: black; } .win-red { color: red; } .win-green { color: green; }
     .win-purple { color: purple; } .win-white { color: grey; } .win-yellow { color: #fbc02d; }
@@ -91,17 +92,16 @@ else:
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     
     all_brackets = sorted(list(set(clrs.values())))
-    tab1, tab2, tab3, tab_view, tab_admin = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
+    tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
     # --- STANDINGS ---
-    with tab1:
-        st.info("🕒 **Current Standings**")
-        stats = {t:{"Bracket":clrs.get(t,"?"), "GP":0, "Sets Won":0, "Sets Lost":0, "Total Pts":0} for t in sorted(clrs.keys())}
+    with tabs[0]:
+        stats = {t:{"Bracket":clrs.get(t,"?"), "Games Played":0, "Sets Won":0, "Sets Lost":0, "Total Pts":0} for t in sorted(clrs.keys())}
         for v in st.session_state.db.values():
             if v['t1'] in stats:
-                stats[v['t1']]["GP"] += 1; stats[v['t1']]["Sets Won"] += v['w1']; stats[v['t1']]["Sets Lost"] += v['w2']; stats[v['t1']]["Total Pts"] += v['p1']
+                stats[v['t1']]["Games Played"] += 1; stats[v['t1']]["Sets Won"] += v['w1']; stats[v['t1']]["Sets Lost"] += v['w2']; stats[v['t1']]["Total Pts"] += v['p1']
             if v['t2'] in stats:
-                stats[v['t2']]["GP"] += 1; stats[v['t2']]["Sets Won"] += v['w2']; stats[v['t2']]["Sets Lost"] += v['w1']; stats[v['t2']]["Total Pts"] += v['p2']
+                stats[v['t2']]["Games Played"] += 1; stats[v['t2']]["Sets Won"] += v['w2']; stats[v['t2']]["Sets Lost"] += v['w1']; stats[v['t2']]["Total Pts"] += v['p2']
         df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
         df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
         for color in all_brackets:
@@ -111,7 +111,7 @@ else:
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     # --- DAY 1 ---
-    with tab2:
+    with tabs[1]:
         q = st.text_input("🔍 Search Team Name", key="q1").lower()
         rows = []
         for _, r in sch[sch["Day"] == "Day 1"].iterrows():
@@ -128,41 +128,61 @@ else:
         if rows: st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     # --- DAY 2 ---
-    with tab3:
-        st.subheader("Day 2 Schedule")
-        st.info("🕒 **Day 2 matches will appear here once Day 1 is completed. Coming soon!**")
-        st.success("🔥 **Day 2 brackets are currently ongoing.**")
+    with tabs[2]:
+        st.info("🕒 **Day 2 matches will appear here once Day 1 is completed.**")
+
+    # --- FINALS VIEW ---
+    with tabs[3]:
+        sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
+        st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
+        def v_m(label, suffix):
+            k = f"{sel_v}_{suffix}"
+            d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
+            st.markdown(f"#### {label}")
+            c1, c2, c3 = st.columns([3, 2, 2])
+            with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
+            with c2:
+                h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
+                st.markdown(h, unsafe_allow_html=True)
+            with c3:
+                if d['sw1'] == 2 and not d['use_s3']: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
+                elif d['sw2'] == 2 and not d['use_s3']: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
+                elif d.get('use_s3'): st.markdown(f"**Set 3:** <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>", unsafe_allow_html=True)
+            st.divider()
+        v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
 
     # --- ADMIN ---
-    with tab_admin:
+    with tabs[4]:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
-            sel_a = st.selectbox("Select Bracket:", all_brackets)
+            sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
             
-            c_head1, c_head2 = st.columns([5, 1])
-            with c_head1: st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
-            with c_head2:
-                if st.button("🗑️ Reset Finals"):
-                    st.session_state.finals = {}; save_finals({}); st.rerun()
+            st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
 
             def a_m(label, suffix):
                 k = f"{sel_a}_{suffix}"
                 d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
-                st.write(f"### {label}")
                 
+                c_title, c_reset = st.columns([5, 1])
+                with c_title: st.write(f"### {label}")
+                with c_reset:
+                    if st.button(f"🗑️ Reset", key=f"reset_{k}"):
+                        if k in st.session_state.finals:
+                            del st.session_state.finals[k]
+                            save_finals(st.session_state.finals)
+                            st.rerun()
+
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
                     t1 = st.selectbox(f"T1", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t1']) if d['t1'] in (["TBD"]+teams) else 0, key=f"at1_{k}")
                     t2 = st.selectbox(f"T2", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t2']) if d['t2'] in (["TBD"]+teams) else 0, key=f"at2_{k}")
                 with c2: 
-                    s1a = st.number_input("S1 T1", 0, 31, d['s1a'], key=f"as1a_{k}")
-                    s1b = st.number_input("S1 T2", 0, 31, d['s1b'], key=f"as1b_{k}")
+                    s1a = st.number_input("S1 T1", 0, 31, d['s1a'], key=f"as1a_{k}"); s1b = st.number_input("S1 T2", 0, 31, d['s1b'], key=f"as1b_{k}")
                 with c3: 
-                    s2a = st.number_input("S2 T1", 0, 31, d['s2a'], key=f"as2a_{k}")
-                    s2b = st.number_input("S2 T2", 0, 31, d['s2b'], key=f"as2b_{k}")
+                    s2a = st.number_input("S2 T1", 0, 31, d['s2a'], key=f"as2a_{k}"); s2b = st.number_input("S2 T2", 0, 31, d['s2b'], key=f"as2b_{k}")
                 
-                # Set 3 Tie Logic
+                # Tie Logic
                 w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
                 w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (w1_temp == 1 and w2_temp == 1)
@@ -180,23 +200,3 @@ else:
                 st.divider()
 
             a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
-
-    # --- FINALS VIEW ---
-    with tab_view:
-        sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True)
-        st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
-        def v_m(label, suffix):
-            k = f"{sel_v}_{suffix}"
-            d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
-            st.markdown(f"#### {label}")
-            c1, c2, c3 = st.columns([3, 2, 1])
-            with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
-            with c2:
-                h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
-                if d.get('use_s3'): h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
-                st.markdown(h, unsafe_allow_html=True)
-            with c3:
-                st.markdown(f"<div class='sets-won-result' style='color: #000; background: #eee;'>{d['sw1']}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='sets-won-result' style='color: #000; background: #eee;'>{d['sw2']}</div>", unsafe_allow_html=True)
-            st.divider()
-        v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
