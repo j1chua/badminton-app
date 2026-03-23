@@ -160,4 +160,21 @@ else:
                 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 0.8, 0.8, 1.5, 0.8, 0.8])
                 with c1:
                     t1 = st.selectbox(f"T1", [p1_d] + b_teams, index=0 if d['t1'] not in b_teams else b_teams.index(d['t1'])+1, key=f"t1_{k}_{v}", label_visibility="collapsed")
-                    t2 =
+                    t2 = st.selectbox(f"T2", [p2_d] + b_teams, index=0 if d['t2'] not in b_teams else b_teams.index(d['t2'])+1, key=f"t2_{k}_{v}", label_visibility="collapsed")
+                with c2:
+                    s1a, s1b = st.number_input("S1a", 0, 31, value=d['s1a'], key=f"s1a_{k}_{v}", label_visibility="collapsed"), st.number_input("S1b", 0, 31, value=d['s1b'], key=f"s1b_{k}_{v}", label_visibility="collapsed")
+                with c3:
+                    s2a, s2b = st.number_input("S2a", 0, 31, value=d['s2a'], key=f"s2a_{k}_{v}", label_visibility="collapsed"), st.number_input("S2b", 0, 31, value=d['s2b'], key=f"s2b_{k}_{v}", label_visibility="collapsed")
+                with c4:
+                    has_s3 = st.toggle("Set 3", value=d.get('has_s3', False), key=f"tg_{k}_{v}")
+                    s3a, s3b = (st.columns(2)[0].number_input("S3a", 0, 31, value=d.get('s3a', 0), key=f"s3a_{k}_{v}", label_visibility="collapsed"), st.columns(2)[1].number_input("S3b", 0, 31, value=d.get('s3b', 0), key=f"s3b_{k}_{v}", label_visibility="collapsed")) if has_s3 else (0,0)
+                
+                win = t1 if ((s1a>s1b)+(s2a>s2b)+(1 if has_s3 and s3a>s3b else 0)) >= 2 else (t2 if ((s1b>s1a)+(s2b>s2a)+(1 if has_s3 and s3b>s3a else 0)) >= 2 else "TBD")
+                if c5.button("💾 Save", key=f"sv_{k}_{v}", use_container_width=True, type="primary"):
+                    save_match(k, {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b, "has_s3": has_s3, "winner": win}); st.toast(f"{label} Saved!"); st.rerun()
+                if c6.button("🔄 Reset", key=f"rs_{k}_{v}", use_container_width=True):
+                    save_match(k, {"t1":p1_d, "t2":p2_d, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False, "winner":"TBD"}); st.session_state.reset_n += 1; st.rerun()
+                st.divider()
+            adm_m("Semi-Final 1", "sf1", "1st Place", "4th Place")
+            adm_m("Semi-Final 2", "sf2", "2nd Place", "3rd Place")
+            adm_m("Championship", "fin", "Winner SF1", "Winner SF2")
