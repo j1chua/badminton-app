@@ -12,8 +12,7 @@ def load():
     m, clrs, init_db = [], {}, {}
     curr_day = "Day 1"
     
-    # Left Block: [Time(0), Color(1), T1(2), T2(7), T1S1(3), T1S2(4), T2S1(8), T2S2(9)]
-    # Right Block: [Time(13), Color(14), T1(15), T2(20), T1S1(16), T1S2(17), T2S1(21), T2S2(22)]
+    # Blocks for scanning: [Time, Color, Team1, Team2, T1S1, T1S2, T2S1, T2S2]
     blocks = [("Left", [0,1,2,7,3,4,8,9]), ("Right", [13,14,15,20,16,17,21,22])]
 
     for row_idx in range(len(df)):
@@ -30,7 +29,6 @@ def load():
                     m.append({"ID":mid,"Day":curr_day,"T":t,"T1":t1,"T2":t2,"L":l})
                     clrs[t1] = clrs[t2] = l
                     
-                    # Read scores - treat as completed if any score is > 0
                     try:
                         vals = [float(df.iloc[row_idx, col]) for col in [c[4], c[5], c[6], c[7]]]
                         s1, s2, s3, s4 = [int(v) for v in vals]
@@ -63,19 +61,19 @@ else:
                 if st.button("Save Score", type="primary", use_container_width=True):
                     w1, w2 = (s1>s3)+(s2>s4), (s3>s1)+(s4>s2)
                     st.session_state.db[sel] = {"sc":f"{s1}-{s3}, {s2}-{s4}","t1":d['T1'],"t2":d['T2'],"p1":s1+s2,"p2":s3+s4,"w1":w1,"l1":w2,"w2":w2,"l2":w1}
-                    st.success("Updated!")
+                    st.success(f"Updated score for {d['T1']} vs {d['T2']}!")
         elif pw != "": st.error("Access Denied")
 
     with t1:
-        res = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Sets Lost":0,"Pts":0} for t in sorted(clrs.keys())}
+        res = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Sets Lost":0,"Total Pts":0} for t in sorted(clrs.keys())}
         for v in st.session_state.db.values():
             for i in [1,2]:
                 if v[f't{i}'] in res:
-                    res[v[f't{i}']]["Sets Won"]+=v[f'w{i}']; res[v[f't{i}']]["Sets Lost"]+=v[f'l{i}']; res[v[f't{i}']]["Pts"]+=v[f'p{i}']
+                    res[v[f't{i}']]["Sets Won"]+=v[f'w{i}']; res[v[f't{i}']]["Sets Lost"]+=v[f'l{i}']; res[v[f't{i}']]["Total Pts"]+=v[f'p{i}']
         df_r = pd.DataFrame.from_dict(res, orient='index').reset_index().rename(columns={'index':'Team'})
         for c in sorted(df_r["Bracket"].unique()):
             st.subheader(f"🏆 {c} Bracket")
-            st.table(df_r[df_r["Bracket"]==c].sort_values(["Sets Won","Pts"], ascending=False))
+            st.table(df_r[df_r["Bracket"]==c].sort_values(["Sets Won","Total Pts"], ascending=False))
 
     with t2:
         v_day = st.radio("View Day:", ["Day 1", "Day 2"], horizontal=True)
