@@ -41,27 +41,22 @@ def load_data():
             p1, p2 = t1.replace("|", " AND "), t2.replace("|", " AND ")
             mid = f"{ct}|{L}|{tm}|{p1}vs{p2}"
             
-            # Match Metadata
-            m_d = {"ID": mid, "Day": day, "T": tm}
-            m_d["P1"], m_d["P2"] = p1, p2
-            m_d["T1"], m_d["T2"] = t1, t2
-            m_d["L"], m_d["Emoji"], m_d["Court"] = L, e, ct
+            m_d = {"ID": mid, "Day": day, "T": tm, "P1": p1, "P2": p2, "T1": t1, "T2": t2, "L": L, "Emoji": e, "Court": ct}
             matches.append(m_d)
-            
             colors[t1] = colors[t2] = L
+            
+            # FIXED SCORE LOGIC: Process each cell individually as an integer
             sc = []
             for col in [c[4],c[5],c[6],c[7]]:
-                v = str(row[col]).strip().replace('.','',1)
-                sc.append(int(float(v)) if v.isdigit() else 0)
+                raw = str(row[col]).strip()
+                # Remove anything that isn't a digit (like extra spaces or symbols)
+                clean = "".join(filter(str.isdigit, raw))
+                sc.append(int(clean) if clean else 0)
             
-            # Score Database (Broken into tiny lines)
             w1 = (sc[0] > sc[2]) + (sc[1] > sc[3])
             w2 = (sc[2] > sc[0]) + (sc[3] > sc[1])
-            res = {}
-            res["s1"], res["s2"], res["s3"], res["s4"] = sc[0], sc[1], sc[2], sc[3]
-            res["t1"], res["t2"] = t1, t2
-            res["p1"], res["p2"] = sc[0]+sc[1], sc[2]+sc[3]
-            res["w1"], res["w2"] = w1, w2
+            res = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2}
+            res["p1"], res["p2"], res["w1"], res["w2"] = sc[0]+sc[1], sc[2]+sc[3], w1, w2
             db[mid] = res
             
     return pd.DataFrame(matches), colors, db
@@ -79,7 +74,7 @@ st.title("🏸 SMASH 2026")
 sch, clrs, csv_db = load_data()
 
 if sch is None or sch.empty:
-    st.warning("Ensure the CSV file is uploaded correctly.")
+    st.warning("Check your CSV file on GitHub.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     t1, t2 = st.tabs(["📊 Standings", "📅 Schedule"])
