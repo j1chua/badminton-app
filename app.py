@@ -130,3 +130,10 @@ else:
         
         if rows:
             sched_df = pd.DataFrame(rows).sort_values(by=["Court", "Time"])
+            st.write(sched_df.to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+
+    with main_tab3:
+        st.subheader("Day 2 Schedule")
+        # Updated language for ongoing brackets
+        st.success("🔥 **Day 2 brackets are currently ongoing.**")
+        st.info("Check back soon for updated match times and court assignments!")
