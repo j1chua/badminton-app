@@ -82,12 +82,8 @@ if sch is None or sch.empty:
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     
-    # Shortened Navigation Tabs
-    main_tab1, main_tab2, main_tab3 = st.tabs([
-        "📊 Standings", 
-        "📅 Day 1", 
-        "📅 Day 2"
-    ])
+    # Navigation Tabs
+    main_tab1, main_tab2, main_tab3 = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2"])
 
     with main_tab1:
         st.info("🕒 **Current Standings** — *Results as of March 22, 2026 (Provisional)*")
@@ -126,7 +122,8 @@ else:
                         p1_tag = f'<span class="{win_cls}">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
                         p2_tag = f'<span class="{win_cls}">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
                         match_display = f"{p1_tag} vs {p2_tag}"
-                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": match_display, "Set 1": s1, "Set 2": s2})
+                # Changed: Only using r["Emoji"] here
+                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": r["Emoji"], "Match": match_display, "Set 1": s1, "Set 2": s2})
         
         if rows:
             sched_df = pd.DataFrame(rows).sort_values(by=["Court", "Time"])
