@@ -82,11 +82,11 @@ if sch is None or sch.empty:
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     
-    # Navigation Tabs
+    # Shortened Navigation Tabs
     main_tab1, main_tab2, main_tab3 = st.tabs([
         "📊 Standings", 
-        "📅 Day 1 Schedule", 
-        "📅 Day 2 Schedule - COMING SOON"
+        "📅 Day 1", 
+        "📅 Day 2"
     ])
 
     with main_tab1:
@@ -134,6 +134,5 @@ else:
 
     with main_tab3:
         st.subheader("Day 2 Schedule")
-        # Updated language for ongoing brackets
         st.success("🔥 **Day 2 brackets are currently ongoing.**")
-        st.info("Check back soon for updated match times and court assignments!")
+        st.info("Check back soon for your match times!")
