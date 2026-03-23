@@ -22,6 +22,7 @@ def load_data():
         df = pd.read_csv(FN, header=None).fillna("")
         matches, team_colors, db = [], {}, {}
         day = "Day 1"
+        # Column blocks for the two halves of the CSV
         blocks = [[0,1,2,7,3,4,8,9], [13,14,15,20,16,17,21,22]]
 
         for idx, row in df.iterrows():
@@ -37,19 +38,21 @@ def load_data():
                     color = str(row[c[1]]).strip().upper()
                     time, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
                     
+                    # FIXED COURT LOGIC: Look specifically in the block's column for the court name
                     court = "Court ?"
                     for r_idx in range(idx, -1, -1):
-                        sv = [str(v).upper() for v in df.iloc[r_idx]]
-                        if any("COURT" in v for v in sv):
-                            court = next(v.strip() for v in sv if "COURT" in v)
+                        val = str(df.iloc[r_idx, c[2]]).upper()
+                        if "COURT" in val:
+                            court = val.strip()
                             break
 
                     p1_d, p2_d = t1.replace("|", " AND "), t2.replace("|", " AND ")
-                    m_id = f"{day[:1]}{idx}{c[0]}"
+                    m_id = f"{day[:1]}{idx}{c[0]}" # Unique ID for each block/row
                     
                     matches.append({"ID": m_id, "Day": day, "T": time, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
                     team_colors[t1] = team_colors[t2] = color
                     
+                    # Score Parsing
                     sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
                     db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3], "w1":w1, "w2":w2}
@@ -57,7 +60,7 @@ def load_data():
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 3. Styling - Added specific colors for winners by bracket
+# 3. Styling
 st.markdown("""
 <style>
     .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
@@ -65,8 +68,7 @@ st.markdown("""
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .m-table tr:nth-child(even) { background-color: #f9f9f9; }
     .forfeit { color: #d32f2f; font-weight: bold; }
-    
-    /* Winner highlights that match the bracket color */
+    /* Winner classes matching bracket colors */
     .win-red { color: red; font-weight: bold; text-decoration: underline; }
     .win-green { color: green; font-weight: bold; text-decoration: underline; }
     .win-purple { color: purple; font-weight: bold; text-decoration: underline; }
@@ -80,23 +82,28 @@ st.title("🏸 SMASH 2026")
 sch, clrs, csv_db = load_data()
 
 if sch is None or sch.empty:
-    st.warning("Data not found.")
+    st.warning("Data not found. Ensure the CSV is named correctly.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
 
     with tab1:
-        stats = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0} for t in sorted(clrs.keys())}
+        # Standings Logic with Tie-breaker (Total Pts)
+        stats = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Total Pts":0} for t in sorted(clrs.keys())}
         for v in st.session_state.db.values():
-            if v['t1'] in stats: stats[v['t1']]["Sets Won"] += v['w1']
-            if v['t2'] in stats: stats[v['t2']]["Sets Won"] += v['w2']
+            if v['t1'] in stats:
+                stats[v['t1']]["Sets Won"] += v['w1']
+                stats[v['t1']]["Total Pts"] += v['p1']
+            if v['t2'] in stats:
+                stats[v['t2']]["Sets Won"] += v['w2']
+                stats[v['t2']]["Total Pts"] += v['p2']
         
         df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
         df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
         
         for color in sorted(df_r["Bracket"].unique()):
             st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
-            sdf = df_r[df_r["Bracket"]==color].sort_values("Sets Won", ascending=False).reset_index(drop=True)
+            sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won", "Total Pts"], ascending=False).reset_index(drop=True)
             ranks = [get_rank_str(i+1) for i in range(len(sdf))]
             sdf.insert(0, "Rank", ranks)
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
@@ -115,8 +122,6 @@ else:
                         s1 = s2 = '<span class="forfeit">FORFEIT</span>'
                     else:
                         s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
-                        
-                        # Use a CSS class instead of a style attribute
                         win_cls = f"win-{r['L'].lower()}"
                         p1_tag = f'<span class="{win_cls}">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
                         p2_tag = f'<span class="{win_cls}">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
@@ -124,5 +129,4 @@ else:
                 
                 rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": match_display, "Set 1": s1, "Set 2": s2})
         
-        if rows: 
-            st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+        if rows: st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
