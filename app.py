@@ -64,7 +64,6 @@ st.markdown("""
     .m-table th { background-color: #f0f2f6; text-align: center !important; padding: 12px; border: 1px solid #ddd; }
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .m-table tr:nth-child(even) { background-color: #f9f9f9; }
-    .winner { text-decoration: underline; font-weight: bold; color: #2e7d32; }
     .forfeit { color: #d32f2f; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
@@ -73,7 +72,7 @@ st.title("🏸 SMASH 2026")
 sch, clrs, csv_db = load_data()
 
 if sch is None or sch.empty:
-    st.warning("Data not found. Ensure the CSV is named 'SMASH 2026 - Score Tracker.csv'.")
+    st.warning("Data not found.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
@@ -90,8 +89,8 @@ else:
         for color in sorted(df_r["Bracket"].unique()):
             st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
             sdf = df_r[df_r["Bracket"]==color].sort_values("Sets Won", ascending=False).reset_index(drop=True)
-            rk_list = [get_rank_str(i+1) for i in range(len(sdf))]
-            sdf.insert(0, "Rank", rk_list)
+            ranks = [get_rank_str(i+1) for i in range(len(sdf))]
+            sdf.insert(0, "Rank", ranks)
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     with tab2:
@@ -108,18 +107,8 @@ else:
                         s1 = s2 = '<span class="forfeit">FORFEIT</span>'
                     else:
                         s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
-                        p1_tag = f'<span class="winner">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
-                        p2_tag = f'<span class="winner">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
+                        # Apply bracket color to the underline if they won both sets
+                        b_color = r["L"].lower()
+                        p1_tag = f'<span style="text-decoration: underline; font-weight: bold; color: {b_color};">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
+                        p2_tag = f'<span style="text-decoration: underline; font-weight: bold; color: {b_color};">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
                         match_display = f"{p1_tag} vs {p2_tag}"
-                
-                rows.append({
-                    "Time": r["T"], 
-                    "Court": r["Court"], 
-                    "Bracket": f"{r['Emoji']} {r['L']}", 
-                    "Match": match_display, 
-                    "Set 1": s1, 
-                    "Set 2": s2
-                })
-        
-        if rows: 
-            st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
