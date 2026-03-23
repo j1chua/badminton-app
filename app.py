@@ -37,7 +37,7 @@ def load_data():
                     color = str(row[c[1]]).strip().upper()
                     time, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
                     
-                    # Court Logic (Search for header above the match)
+                    # Court Logic (Looks for header in specific column)
                     court = "Court ?"
                     for r_idx in range(idx, -1, -1):
                         val = str(df.iloc[r_idx, c[2]]).upper()
@@ -87,16 +87,18 @@ else:
     tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
 
     with tab1:
-        # Added "Sets Lost" to the dictionary
-        stats = {t:{"Bracket":clrs.get(t,"?"), "Sets Won":0, "Sets Lost":0, "Total Pts":0} for t in sorted(clrs.keys())}
+        # Initializing stats with "Games Played"
+        stats = {t:{"Bracket":clrs.get(t,"?"), "Games Played": 0, "Sets Won":0, "Sets Lost":0, "Total Pts":0} for t in sorted(clrs.keys())}
         for v in st.session_state.db.values():
             if v['t1'] in stats:
+                stats[v['t1']]["Games Played"] += 1
                 stats[v['t1']]["Sets Won"] += v['w1']
-                stats[v['t1']]["Sets Lost"] += v['w2'] # Sets lost are sets the opponent won
+                stats[v['t1']]["Sets Lost"] += v['w2']
                 stats[v['t1']]["Total Pts"] += v['p1']
             if v['t2'] in stats:
+                stats[v['t2']]["Games Played"] += 1
                 stats[v['t2']]["Sets Won"] += v['w2']
-                stats[v['t2']]["Sets Lost"] += v['w1'] # Sets lost are sets the opponent won
+                stats[v['t2']]["Sets Lost"] += v['w1']
                 stats[v['t2']]["Total Pts"] += v['p2']
         
         df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
@@ -104,9 +106,9 @@ else:
         
         for color in sorted(df_r["Bracket"].unique()):
             st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
+            # Primary sort by Sets Won, secondary by Total Pts
             sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won", "Total Pts"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
-            # Displaying Sets Won, Sets Lost, and Total Pts
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     with tab2:
@@ -131,5 +133,6 @@ else:
                 rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": match_display, "Set 1": s1, "Set 2": s2})
         
         if rows:
+            # Sorted by Court then Time
             sched_df = pd.DataFrame(rows).sort_values(by=["Court", "Time"])
             st.write(sched_df.to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
