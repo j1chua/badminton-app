@@ -89,7 +89,6 @@ sch, clrs, csv_db = load_data()
 if sch is None or sch.empty:
     st.warning("Data not found.")
 else:
-    # Initialize session states
     if 'db' not in st.session_state: st.session_state.db = csv_db
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
@@ -143,15 +142,17 @@ else:
             k = f"{sel_v}_{suffix}"
             d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
             st.markdown(f"#### {label}")
-            c1, c2, c3 = st.columns([3, 2, 2])
+            c1, c2, c3 = st.columns([3, 4, 2])
             with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
             with c2:
                 h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
+                if d.get('use_s3'):
+                    h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
                 st.markdown(h, unsafe_allow_html=True)
             with c3:
-                if d['sw1'] == 2 and not d['use_s3']: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
-                elif d['sw2'] == 2 and not d['use_s3']: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
-                elif d.get('use_s3'): st.markdown(f"**Set 3:** <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>", unsafe_allow_html=True)
+                # Winner logic: best of 3
+                if d['sw1'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
+                elif d['sw2'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
             st.divider()
         v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
 
@@ -161,7 +162,6 @@ else:
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
-            
             st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
 
             def a_m(label, suffix):
@@ -176,8 +176,7 @@ else:
                         if match_id in st.session_state.finals:
                             del st.session_state.finals[match_id]
                         st.session_state.reset_versions[match_id] = v + 1
-                        save_finals(st.session_state.finals)
-                        st.rerun()
+                        save_finals(st.session_state.finals); st.rerun()
 
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
