@@ -89,6 +89,7 @@ sch, clrs, csv_db = load_data()
 if sch is None or sch.empty:
     st.warning("Data not found.")
 else:
+    # Initialize session states
     if 'db' not in st.session_state: st.session_state.db = csv_db
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
@@ -116,7 +117,10 @@ else:
     with tabs[1]:
         q = st.text_input("🔍 Search Team Name", key="q1").lower()
         rows = []
-        for _, r in sch[sch["Day"] == "Day 1"].iterrows():
+        day1_df = sch[sch["Day"] == "Day 1"].copy()
+        day1_df = day1_df.sort_values(by="Court")
+        
+        for _, r in day1_df.iterrows():
             if q in r['T1'].lower() or q in r['T2'].lower():
                 d = st.session_state.db.get(r["ID"])
                 s1, s2 = "--", "--"
@@ -126,7 +130,7 @@ else:
                     win_cls = f"win-{r['L'].lower()}"
                     if d['w1'] == 2: p1_tag = f'<span class="{win_cls}">{r["P1"]}</span>'
                     if d['w2'] == 2: p2_tag = f'<span class="{win_cls}">{r["P2"]}</span>'
-                rows.append({"Time": r["T"], "Bracket": r["Emoji"], "Court": r["Court"], "Match": f"{p1_tag} vs {p2_tag}", "Set 1": s1, "Set 2": s2})
+                rows.append({"Court": r["Court"], "Time": r["T"], "Bracket": r["Emoji"], "Match": f"{p1_tag} vs {p2_tag}", "Set 1": s1, "Set 2": s2})
         if rows: st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     # --- DAY 2 ---
@@ -150,7 +154,6 @@ else:
                     h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
                 st.markdown(h, unsafe_allow_html=True)
             with c3:
-                # Winner logic: best of 3
                 if d['sw1'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
                 elif d['sw2'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
             st.divider()
