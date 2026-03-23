@@ -8,6 +8,10 @@ st.set_page_config(page_title="SMASH 2026", layout="wide")
 FN = "SMASH 2026 - Score Tracker.csv"
 SAVE_FN = "finals_data.json"
 EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"}
+COLOR_MAP = {
+    "BLACK": "#000000", "RED": "#d32f2f", "GREEN": "#2e7d32", 
+    "PURPLE": "#7b1fa2", "WHITE": "#9e9e9e", "YELLOW": "#fbc02d"
+}
 ADMIN_PW = "pogisiJordan"
 
 def save_finals(data):
@@ -69,9 +73,7 @@ st.markdown("""
     .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
     .m-table th { background-color: #f0f2f6; text-align: center !important; padding: 12px; border: 1px solid #ddd; }
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
-    .m-table tr:nth-child(even) { background-color: #f9f9f9; }
-    .bracket-header { background-color: #000; color: #fff; padding: 8px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold;}
-    .sets-won-result { font-weight: bold; color: #d32f2f; text-align: center; font-size: 1.1em; background-color: #ffebee; border-radius: 4px; margin-bottom: 2px;}
+    .bracket-header { color: #fff; padding: 12px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold; font-size: 1.2em;}
     .score-badge { background: #f0f2f6; padding: 4px 10px; border-radius: 5px; font-weight: bold; margin-right: 5px; border: 1px solid #ccc; }
     [class^="win-"] { font-weight: bold; text-decoration: underline; }
     .win-black { color: black; } .win-red { color: red; } .win-green { color: green; }
@@ -134,45 +136,55 @@ else:
     # --- ADMIN ---
     with tab_admin:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
-            sel_a = st.selectbox("Select Bracket to Manage:", all_brackets)
+            sel_a = st.selectbox("Select Bracket:", all_brackets)
+            bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
             
-            c_top1, c_top2 = st.columns([5, 1])
-            with c_top1: st.markdown(f'<div class="bracket-header">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
-            with c_top2:
-                if st.button("🗑️ Reset All Finals"):
-                    st.session_state.finals = {}
-                    save_finals({}); st.rerun()
+            c_head1, c_head2 = st.columns([5, 1])
+            with c_head1: st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
+            with c_head2:
+                if st.button("🗑️ Reset Finals"):
+                    st.session_state.finals = {}; save_finals({}); st.rerun()
 
             def a_m(label, suffix):
                 k = f"{sel_a}_{suffix}"
                 d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
-                st.write(f"**{label}**")
-                c1, c2, c3, c4, c5 = st.columns([2.5, 1, 1, 1, 1.5])
+                st.write(f"### {label}")
+                
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
-                    t1 = st.selectbox(f"T1_{k}", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t1']) if d['t1'] in (["TBD"]+teams) else 0, key=f"at1_{k}")
-                    t2 = st.selectbox(f"T2_{k}", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t2']) if d['t2'] in (["TBD"]+teams) else 0, key=f"at2_{k}")
-                with c2: s1a = st.number_input("S1a", 0, 31, d['s1a'], key=f"as1a_{k}"); s1b = st.number_input("S1b", 0, 31, d['s1b'], key=f"as1b_{k}")
-                with c3: s2a = st.number_input("S2a", 0, 31, d['s2a'], key=f"as2a_{k}"); s2b = st.number_input("S2b", 0, 31, d['s2b'], key=f"as2b_{k}")
+                    t1 = st.selectbox(f"T1", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t1']) if d['t1'] in (["TBD"]+teams) else 0, key=f"at1_{k}")
+                    t2 = st.selectbox(f"T2", ["TBD"] + teams, index=(["TBD"]+teams).index(d['t2']) if d['t2'] in (["TBD"]+teams) else 0, key=f"at2_{k}")
+                with c2: 
+                    s1a = st.number_input("S1 T1", 0, 31, d['s1a'], key=f"as1a_{k}")
+                    s1b = st.number_input("S1 T2", 0, 31, d['s1b'], key=f"as1b_{k}")
+                with c3: 
+                    s2a = st.number_input("S2 T1", 0, 31, d['s2a'], key=f"as2a_{k}")
+                    s2b = st.number_input("S2 T2", 0, 31, d['s2b'], key=f"as2b_{k}")
+                
+                # Set 3 Tie Logic
+                w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
+                w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
+                is_tie = (w1_temp == 1 and w2_temp == 1)
+                
                 with c4:
-                    use_s3 = st.toggle("Third Set?", d.get('use_s3', False), key=f"tgl_{k}")
-                    s3a = st.number_input("S3a", 0, 31, d['s3a'], key=f"as3a_{k}", disabled=not use_s3)
-                    s3b = st.number_input("S3b", 0, 31, d['s3b'], key=f"as3b_{k}", disabled=not use_s3)
-                with c5:
-                    sw1 = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0) + (1 if use_s3 and s3a > s3b else 0)
-                    sw2 = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0) + (1 if use_s3 and s3b > s3a else 0)
-                    st.markdown(f"<div class='sets-won-result'>{sw1} Set(s)</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='sets-won-result'>{sw2} Set(s)</div>", unsafe_allow_html=True)
+                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"tgl_{k}", disabled=not is_tie)
+                    s3a = st.number_input("S3 T1", 0, 31, d['s3a'], key=f"as3a_{k}", disabled=not use_s3)
+                    s3b = st.number_input("S3 T2", 0, 31, d['s3b'], key=f"as3b_{k}", disabled=not use_s3)
+                
                 if st.button(f"Save {label}", key=f"abtn_{k}"):
+                    sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
+                    sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
                     st.session_state.finals[k] = {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, "sw1":sw1, "sw2":sw2, "use_s3":use_s3}
                     save_finals(st.session_state.finals); st.success("Saved!")
                 st.divider()
+
             a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
 
     # --- FINALS VIEW ---
     with tab_view:
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True)
-        st.markdown(f'<div class="bracket-header">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
         def v_m(label, suffix):
             k = f"{sel_v}_{suffix}"
             d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
@@ -184,6 +196,7 @@ else:
                 if d.get('use_s3'): h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
                 st.markdown(h, unsafe_allow_html=True)
             with c3:
-                st.markdown(f"<div class='sets-won-result'>{d['sw1']}</div>", unsafe_allow_html=True); st.markdown(f"<div class='sets-won-result'>{d['sw2']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sets-won-result' style='color: #000; background: #eee;'>{d['sw1']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sets-won-result' style='color: #000; background: #eee;'>{d['sw2']}</div>", unsafe_allow_html=True)
             st.divider()
         v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
