@@ -73,7 +73,7 @@ st.markdown("""
     .bracket-header { background-color: #000; color: #fff; padding: 8px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold;}
     .score-badge { background: #f0f2f6; padding: 4px 10px; border-radius: 5px; font-weight: bold; margin-right: 5px; border: 1px solid #ccc; font-family: monospace; }
     .winner-text { color: #2e7d32; font-weight: bold; text-decoration: underline; }
-    .win-black { color: black; font-weight: bold; text-decoration: underline; }
+    .tie-warning { color: #d32f2f; font-weight: bold; font-size: 0.8em; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -88,11 +88,6 @@ else:
 
     black_teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == "BLACK"])
     current_finals = load_finals()
-
-    # --- STANDINGS & DAY 1/2 (Logic skipped for brevity, same as previous) ---
-    with tab1: st.info("Check standings for rankings...")
-    with tab2: st.info("Search matches for Day 1...")
-    with tab3: st.info("Day 2 Schedule Ongoing...")
 
     # --- ADMIN TAB ---
     with tab_admin:
@@ -115,8 +110,14 @@ else:
                     s2a = st.number_input("S2a", 0, 30, value=d['s2a'], key=f"s2a_{k}", label_visibility="collapsed")
                     s2b = st.number_input("S2b", 0, 30, value=d['s2b'], key=f"s2b_{k}", label_visibility="collapsed")
                 
+                # Winner Logic for Sets 1 and 2
+                sw1_base = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
+                sw2_base = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
+                is_tie = (sw1_base == 1 and sw2_base == 1)
+
                 with c4:
-                    has_s3 = st.toggle("➕ Set 3", value=d.get('has_s3', False), key=f"tog_{k}")
+                    if is_tie: st.markdown('<p class="tie-warning">1-1 TIE! ⬇️</p>', unsafe_allow_html=True)
+                    has_s3 = st.toggle("Set 3", value=d.get('has_s3', False), key=f"tog_{k}")
                     s3a, s3b = 0, 0
                     if has_s3:
                         s3a = st.number_input("S3a", 0, 30, value=d.get('s3a', 0), key=f"s3a_{k}", label_visibility="collapsed")
@@ -128,11 +129,13 @@ else:
                         save_finals(current_finals)
                         st.rerun()
 
-                sw1 = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0) + (1 if has_s3 and s3a > s3b else 0)
-                sw2 = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0) + (1 if has_s3 and s3b > s3a else 0)
+                # Final Winner Calculation
+                total_w1 = sw1_base + (1 if has_s3 and s3a > s3b else 0)
+                total_w2 = sw2_base + (1 if has_s3 and s3b > s3a else 0)
+                
                 winner = "TBD"
-                if sw1 > sw2: winner = t1
-                elif sw2 > sw1: winner = t2
+                if total_w1 >= 2: winner = t1
+                elif total_w2 >= 2: winner = t2
                 
                 st.divider()
                 return {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b, "has_s3": has_s3, "winner": winner}
@@ -161,10 +164,14 @@ else:
                 st.markdown(t1_s, unsafe_allow_html=True)
                 st.markdown(t2_s, unsafe_allow_html=True)
             with c2:
-                scores = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span><span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
-                if d.get('has_s3'):
-                    scores += f"<span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
-                st.markdown(scores, unsafe_allow_html=True)
+                # Don't show scores if they are 0-0 (match hasn't started)
+                if d['s1a'] == 0 and d['s1b'] == 0:
+                    st.markdown("<span class='tbd-text'>Match Upcoming</span>", unsafe_allow_html=True)
+                else:
+                    scores = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span><span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
+                    if d.get('has_s3'):
+                        scores += f"<span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
+                    st.markdown(scores, unsafe_allow_html=True)
             with c3:
                 win_label = f"<span class='winner-text'>{d['winner']}</span>" if d['winner']!="TBD" else "TBD"
                 st.markdown(f"Winner: {win_label}", unsafe_allow_html=True)
@@ -173,3 +180,7 @@ else:
         render_view("Semi-Final 1 (#1 vs #4)", "sf1")
         render_view("Semi-Final 2 (#2 vs #3)", "sf2")
         render_view("🏆 Championship Final", "final")
+
+    # --- STANDINGS (Simplified for this display) ---
+    with tab1:
+        st.info("🕒 Check rankings based on Day 1 & Day 2 scores.")
