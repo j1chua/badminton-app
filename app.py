@@ -14,7 +14,7 @@ def get_rank_str(i):
     suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
     return f"{i}{suffix}"
 
-# 2. Data Loader (Flattened to avoid Syntax Errors)
+# 2. Data Loader (Shortened lines to prevent cutoff)
 @st.cache_data
 def load_data():
     if not os.path.exists(FN): return None, {}, {}
@@ -43,4 +43,25 @@ def load_data():
             
             p1, p2 = t1.replace("|", " AND "), t2.replace("|", " AND ")
             mid = f"{ct}|{L}|{tm}|{p1}vs{p2}"
-            matches.append({"ID":mid,"Day":day,"T":tm,"T1":t1,"T2":t2,"P1":p1,"P2":p2,"L":L,"Emoji
+            
+            # BROKEN INTO SHORT LINES TO PREVENT SYNTAX ERRORS
+            m_data = {"ID": mid, "Day": day, "T": tm}
+            m_data["T1"] = t1
+            m_data["T2"] = t2
+            m_data["P1"] = p1
+            m_data["P2"] = p2
+            m_data["L"] = L
+            m_data["Emoji"] = e
+            m_data["Court"] = ct
+            matches.append(m_data)
+            
+            colors[t1] = colors[t2] = L
+            scores = []
+            for col_idx in [c[4],c[5],c[6],c[7]]:
+                val = str(row[col_idx]).strip().replace('.','',1)
+                scores.append(int(float(val)) if val.isdigit() else 0)
+            
+            w1 = (scores[0] > scores[2]) + (scores[1] > scores[3])
+            w2 = (scores[2] > scores[0]) + (scores[3] > scores[1])
+            db[mid] = {"s1":scores[0],"s2":scores[1],"s3":scores[2],"s4":scores[3],"t1":t1,
+                       "t2":t2,"p1":scores[0]+scores[1],"p2":scores[2]+scores[3],"w1":w1
