@@ -2,80 +2,117 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. Page Config
+# 1. Page Configuration
 st.set_page_config(page_title="SMASH 2026", layout="wide")
-F = "SMASH 2026 - Score Tracker.csv"
-EMO = {"BLACK":"⚫","RED":"🔴","GREEN":"🟢","PURPLE":"🟣","WHITE":"⚪","YELLOW":"🟡"}
+FN = "SMASH 2026 - Score Tracker.csv"
+EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"}
 
-# 2. Data Engine
+def get_rank_str(i):
+    if i == 1: return "🥇 <b>1st</b>"
+    if i == 2: return "🥈 <b>2nd</b>"
+    if i == 3: return "🥉 <b>3rd</b>"
+    suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
+    return f"{i}{suffix}"
+
+# 2. Data Loading Logic
 @st.cache_data
-def ld():
-    if not os.path.exists(F): return None,{},{}
-    df = pd.read_csv(F,header=None).fillna("")
-    m,cl,db,dy = [],{},{},"Day 1"
-    bk = [[0,1,2,7,3,4,8,9],[13,14,15,20,16,17,21,22]]
-    for i,r in df.iterrows():
-        sr = " ".join(map(str,r)).upper()
-        if "DAY 2" in sr: dy="Day 2"
-        elif "DAY 1" in sr: dy="Day 1"
-        for c in bk:
-            t1,t2 = str(r[c[2]]).strip(),str(r[c[3]]).strip()
-            if "|" not in t1: continue
-            tm,L = str(r[c[0]]).strip(),str(r[c[1]]).strip().upper()
-            p1,p2 = t1.replace("|"," & "),t2.replace("|"," & ")
-            # Court Finder
-            ct = "Court ?"
-            for p in range(i,-1,-1):
-                v = [str(x).upper() for x in df.iloc[p]]
-                f = [x for x in v if "COURT" in x]
-                if f: ct=f[0]; break
-            # Match Data
-            id = f"{dy}{ct}{tm}{p1}"
-            d = {"ID":id,"Dy":dy,"T":tm,"P1":p1,"P2":p2,"T1":t1,"T2":t2,"L":L,"C":ct}
-            m.append(d)
-            cl[t1]=cl[t2]=L
-            # Score Logic (Fixed 210 issue)
-            sc = []
-            for k in [4,5,6,7]:
-                v = "".join(filter(str.isdigit,str(r[c[k]])))
-                sc.append(int(v) if v else 0)
-            w1,w2 = (sc[0]>sc[2])+(sc[1]>sc[3]),(sc[2]>sc[0])+(sc[3]>sc[1])
-            db[id] = {"s1":sc[0],"s2":sc[1],"s3":sc[2],"s4":sc[3],"t1":t1,"t2":t2,"w1":w1,"w2":w2}
-    return pd.DataFrame(m),cl,db
+def load_data():
+    if not os.path.exists(FN): return None, {}, {}
+    try:
+        df = pd.read_csv(FN, header=None).fillna("")
+        matches, team_colors, db = [], {}, {}
+        day = "Day 1"
+        blocks = [[0,1,2,7,3,4,8,9], [13,14,15,20,16,17,21,22]]
 
-# 3. UI Styling
-st.markdown("""<style>
-    .m-t{width:100%;border-collapse:collapse;}
-    .m-t th,.m-t td{text-align:center;padding:8px;border:1px solid #ddd;}
-    .win{background:#e8f5e9;color:#2e7d32;font-weight:bold;border-radius:3px;}
-</style>""", unsafe_allow_html=True)
+        for idx, row in df.iterrows():
+            txt = " ".join([str(x) for x in row]).upper()
+            if "DAY 2" in txt: day = "Day 2"
+            elif "DAY 1" in txt: day = "Day 1"
+            
+            for c in blocks:
+                try:
+                    t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
+                    if "|" not in t1 or "|" not in t2: continue
+                    
+                    color = str(row[c[1]]).strip().upper()
+                    time, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
+                    
+                    # Find Court Name
+                    court = "Court ?"
+                    for r_idx in range(idx, -1, -1):
+                        search_vals = [str(v).upper() for v in df.iloc[r_idx]]
+                        found = False
+                        for v in search_vals:
+                            if "COURT" in v: 
+                                court, found = v.strip(), True
+                                break
+                        if found: break
+
+                    p1_d, p2_d = t1.replace("|", " AND "), t2.replace("|", " AND ")
+                    m_id = f"{court} | {emoji} {color} | {time} | {p1_d} vs {p2_d}"
+                    
+                    matches.append({"ID": m_id, "Day": day, "T": time, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
+                    team_colors[t1] = team_colors[t2] = color
+                    
+                    # Scores and Points
+                    sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
+                    w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
+                    db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3], "w1":w1, "l1":w2, "w2":w2, "l2":w1}
+                except: continue
+        return pd.DataFrame(matches), team_colors, db
+    except: return None, {}, {}
+
+# 3. Styling
+st.markdown("""
+<style>
+    .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
+    .m-table th { background-color: #f0f2f6; text-align: center !important; padding: 12px; border: 1px solid #ddd; }
+    .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
+    .m-table tr:nth-child(even) { background-color: #f9f9f9; }
+    .forfeit { color: #d32f2f; font-weight: bold; }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("🏸 SMASH 2026")
-dt,cls,db = ld()
+sch, clrs, csv_db = load_data()
 
-if dt is not None:
-    t1,t2 = st.tabs(["📊 Standings","📅 Schedule"])
-    with t1:
-        st.subheader("Leaderboard")
-        res = {t:{"Bracket":cls[t],"Sets Won":0} for t in cls}
-        for v in db.values():
-            if v['t1'] in res: res[v['t1']]["Sets Won"] += v['w1']
-            if v['t2'] in res: res[v['t2']]["Sets Won"] += v['w2']
-        df_s = pd.DataFrame.from_dict(res,"index").reset_index()
-        for b in sorted(df_s["Bracket"].unique()):
-            st.write(f"### {EMO.get(b,'🏆')} {b} Bracket")
-            sdf = df_s[df_s["Bracket"]==b].sort_values("Sets Won",ascending=False)
-            st.table(sdf.drop(columns=["Bracket"]))
-    with t2:
-        colA,colB = st.columns([1,2])
-        d_s = colA.radio("Select Day",["Day 1","Day 2"],horizontal=True)
-        sh = colB.text_input("🔍 Search Team").lower()
+if sch is None or sch.empty:
+    st.warning("Data not found. Ensure the CSV is named exactly 'SMASH 2026 - Score Tracker.csv'.")
+else:
+    if 'db' not in st.session_state: st.session_state.db = csv_db
+    tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
+
+    with tab1:
+        stats = {t:{"Bracket":clrs.get(t,"?"),"Sets Won":0,"Sets Lost":0,"Total Pts":0} for t in sorted(clrs.keys())}
+        for v in st.session_state.db.values():
+            for i in [1,2]:
+                tm = v[f't{i}']
+                if tm in stats:
+                    stats[tm]["Sets Won"] += v[f'w{i}']; stats[tm]["Sets Lost"] += v[f'l{i}']; stats[tm]["Total Pts"] += v[f'p{i}']
+        
+        df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
+        df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
+        
+        for color in sorted(df_r["Bracket"].unique()):
+            st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
+            sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won","Total Pts"], ascending=False).reset_index(drop=True)
+            sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
+            st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+
+    with tab2:
+        day_pick = st.radio("Select Day:", ["Day 1", "Day 2"], horizontal=True)
+        search = st.text_input("🔍 Search Team Name")
+        q = search.lower() if search else ""
         rows = []
-        for _,r in dt[dt["Dy"]==d_s].iterrows():
-            if sh and sh not in r["P1"].lower() and sh not in r["P2"].lower(): continue
-            d = db.get(r["ID"])
-            if d:
-                p1 = f"**{r['P1']}**" if d['w1']==2 else r['P1']
-                p2 = f"**{r['P2']}**" if d['w2']==2 else r['P2']
-                rows.append({"Time":r["T"],"Court":r["C"],"Match":f"{p1} vs {p2}","S1":f"{d['s1']}-{d['s3']}","S2":f"{d['s2']}-{d['s4']}","Res":f"{d['w1']}-{d['w2']}"})
-        if rows: st.write(pd.DataFrame(rows).to_html(escape=False,index=False,classes="m-t"),unsafe_allow_html=True)
+        for _, r in sch[sch["Day"] == day_pick].iterrows():
+            if q in r['T1'].lower() or q in r['T2'].lower() or q in r['P1'].lower() or q in r['P2'].lower():
+                d = st.session_state.db.get(r["ID"])
+                s1, s2 = "--", "--"
+                if d:
+                    if (d['s1']==0 and d['s2']==0) and (d['s3']==0 and d['s4']==0):
+                        s1 = s2 = '<span class="forfeit">FORFEIT</span>'
+                    else:
+                        s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
+                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": f"{r['P1']} vs {r['P2']}", "Set 1": s1, "Set 2": s2})
+        
+        if rows: st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
