@@ -11,9 +11,11 @@ EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHI
 ADMIN_PW = "pogisiJordan"
 
 # 2. Persistence Logic
-def save_finals(data):
+def save_single_match(match_key, match_data):
+    current = load_finals()
+    current[match_key] = match_data
     with open(SAVE_FN, "w") as f:
-        json.dump(data, f)
+        json.dump(current, f)
 
 def load_finals():
     if os.path.exists(SAVE_FN):
@@ -69,10 +71,7 @@ sch, clrs, csv_db = load_data()
 if sch is None or sch.empty:
     st.warning("Please ensure the CSV file is uploaded.")
 else:
-    if 'db' not in st.session_state: st.session_state.db = csv_db
-    # Initialize reset triggers in session state
     if 'reset_n' not in st.session_state: st.session_state.reset_n = 0
-    
     current_finals = load_finals()
     tab1, tab2, tab3, tab_view, tab_admin = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
@@ -85,12 +84,11 @@ else:
             st.markdown('<div class="bracket-header">⚙️ ADMIN CONTROL - BLACK BRACKET</div>', unsafe_allow_html=True)
             
             def admin_match(label, k, p1_def, p2_def):
-                # Unique version key to force-reset widgets
                 v = st.session_state.reset_n
-                st.write(f"**{label}**")
+                st.write(f"### {label}")
                 d = current_finals.get(k, {"t1":p1_def, "t2":p2_def, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False})
                 
-                c1, c2, c3, c4, c5 = st.columns([3, 1, 1, 1.5, 0.8])
+                c1, c2, c3, c4, c5, c6 = st.columns([2.5, 0.8, 0.8, 1.5, 0.8, 0.8])
                 
                 with c1:
                     t1 = st.selectbox(f"T1", [p1_def] + black_teams, index=0 if d['t1'] not in black_teams else black_teams.index(d['t1'])+1, key=f"t1_{k}_{v}", label_visibility="collapsed")
@@ -115,33 +113,33 @@ else:
                         s3a = s3_cols[0].number_input("S3a", 0, 31, value=d.get('s3a', 0), key=f"s3a_{k}_{v}", label_visibility="collapsed")
                         s3b = s3_cols[1].number_input("S3b", 0, 31, value=d.get('s3b', 0), key=f"s3b_{k}_{v}", label_visibility="collapsed")
                 
-                with c5:
-                    if st.button("Reset", key=f"btn_reset_{k}_{v}", use_container_width=True):
-                        # Clear persistent data
-                        current_finals[k] = {"t1":p1_def, "t2":p2_def, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False, "winner":"TBD"}
-                        save_finals(current_finals)
-                        # Increment version to force widget reset
-                        st.session_state.reset_n += 1
-                        st.rerun()
-
                 total_w1 = sw1_base + (1 if has_s3 and s3a > s3b else 0)
                 total_w2 = sw2_base + (1 if has_s3 and s3b > s3a else 0)
                 winner = "TBD"
                 if total_w1 >= 2: winner = t1
                 elif total_w2 >= 2: winner = t2
+
+                match_state = {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b, "has_s3": has_s3, "winner": winner}
+
+                with c5:
+                    if st.button("💾 Save", key=f"save_{k}_{v}", use_container_width=True, type="primary"):
+                        save_single_match(k, match_state)
+                        st.toast(f"{label} Saved!", icon="✅")
+                        st.rerun()
+
+                with c6:
+                    if st.button("🔄 Reset", key=f"reset_{k}_{v}", use_container_width=True):
+                        reset_state = {"t1":p1_def, "t2":p2_def, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False, "winner":"TBD"}
+                        save_single_match(k, reset_state)
+                        st.session_state.reset_n += 1
+                        st.rerun()
                 
                 st.divider()
-                return {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a, "s3b":s3b, "has_s3": has_s3, "winner": winner}
 
-            new_data = {
-                'sf1': admin_match("SEMI-FINAL 1", "sf1", "1st Place", "4th Place"),
-                'sf2': admin_match("SEMI-FINAL 2", "sf2", "2nd Place", "3rd Place"),
-                'final': admin_match("🏆 CHAMPIONSHIP FINAL", "fin", "Winner SF1", "Winner SF2")
-            }
-            if st.button("💾 SAVE ALL RESULTS", use_container_width=True, type="primary"):
-                save_finals(new_data)
-                st.success("Scores saved successfully!")
-                st.rerun()
+            admin_match("Semi-Final 1", "sf1", "1st Place", "4th Place")
+            admin_match("Semi-Final 2", "sf2", "2nd Place", "3rd Place")
+            admin_match("🏆 Championship Final", "fin", "Winner SF1", "Winner SF2")
+            
         elif pw != "": st.error("Access Denied.")
 
     # --- VIEW-ONLY FINALS ---
