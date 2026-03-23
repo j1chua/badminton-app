@@ -88,8 +88,10 @@ sch, clrs, csv_db = load_data()
 if sch is None or sch.empty:
     st.warning("Data not found.")
 else:
+    # Initialize session states
     if 'db' not in st.session_state: st.session_state.db = csv_db
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
+    if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
     
     all_brackets = sorted(list(set(clrs.values())))
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
@@ -161,49 +163,43 @@ else:
             st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
 
             def a_m(label, suffix):
-                k = f"{sel_a}_{suffix}"
-                # If key doesn't exist, we use default "empty" state
-                d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
+                match_id = f"{sel_a}_{suffix}"
+                
+                # Get the current "version" for this match. Changing this resets all widgets for this match.
+                v = st.session_state.reset_versions.get(match_id, 0)
+                
+                # Load current data or default
+                d = st.session_state.finals.get(match_id, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
                 
                 c_title, c_reset = st.columns([5, 1])
                 with c_title: st.write(f"### {label}")
                 with c_reset:
-                    # Reset button now clears the saved entry AND triggers rerun to reset widgets to defaults
-                    if st.button(f"🗑️ Reset", key=f"reset_{k}"):
-                        if k in st.session_state.finals:
-                            del st.session_state.finals[k]
-                            save_finals(st.session_state.finals)
-                            st.rerun()
+                    if st.button(f"🗑️ Reset", key=f"reset_{match_id}_{v}"):
+                        # 1. Clear the stored data
+                        if match_id in st.session_state.finals:
+                            del st.session_state.finals[match_id]
+                        # 2. Increment the version to force-reset widget states
+                        st.session_state.reset_versions[match_id] = v + 1
+                        save_finals(st.session_state.finals)
+                        st.rerun()
 
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
                     t_opts = ["TBD"] + teams
-                    t1_idx = t_opts.index(d['t1']) if d['t1'] in t_opts else 0
-                    t2_idx = t_opts.index(d['t2']) if d['t2'] in t_opts else 0
-                    t1 = st.selectbox(f"T1", t_opts, index=t1_idx, key=f"at1_{k}")
-                    t2 = st.selectbox(f"T2", t_opts, index=t2_idx, key=f"at2_{k}")
+                    # Use the 'v' in keys to ensure they reset on increment
+                    t1 = st.selectbox(f"T1", t_opts, index=t_opts.index(d['t1']) if d['t1'] in t_opts else 0, key=f"t1_{match_id}_{v}")
+                    t2 = st.selectbox(f"T2", t_opts, index=t_opts.index(d['t2']) if d['t2'] in t_opts else 0, key=f"t2_{match_id}_{v}")
                 with c2: 
-                    s1a = st.number_input("S1 T1", 0, 31, int(d['s1a']), key=f"as1a_{k}")
-                    s1b = st.number_input("S1 T2", 0, 31, int(d['s1b']), key=f"as1b_{k}")
+                    s1a = st.number_input("S1 T1", 0, 31, int(d['s1a']), key=f"s1a_{match_id}_{v}")
+                    s1b = st.number_input("S1 T2", 0, 31, int(d['s1b']), key=f"s1b_{match_id}_{v}")
                 with c3: 
-                    s2a = st.number_input("S2 T1", 0, 31, int(d['s2a']), key=f"as2a_{k}")
-                    s2b = st.number_input("S2 T2", 0, 31, int(d['s2b']), key=f"as2b_{k}")
+                    s2a = st.number_input("S2 T1", 0, 31, int(d['s2a']), key=f"s2a_{match_id}_{v}")
+                    s2b = st.number_input("S2 T2", 0, 31, int(d['s2b']), key=f"s2b_{match_id}_{v}")
                 
-                # Tie Logic
                 w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
                 w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (w1_temp == 1 and w2_temp == 1)
                 
                 with c4:
-                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"tgl_{k}", disabled=not is_tie)
-                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"as3a_{k}", disabled=not use_s3)
-                    s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"as3b_{k}", disabled=not use_s3)
-                
-                if st.button(f"Save {label}", key=f"abtn_{k}"):
-                    sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
-                    sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
-                    st.session_state.finals[k] = {"t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, "sw1":sw1, "sw2":sw2, "use_s3":use_s3}
-                    save_finals(st.session_state.finals); st.success("Saved!")
-                st.divider()
-
-            a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
+                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
+                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"s3a_{match_id}_{v}", disabled=not use_s3
