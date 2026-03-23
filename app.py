@@ -49,12 +49,13 @@ def load_data():
                         if found: break
 
                     p1_d, p2_d = t1.replace("|", " AND "), t2.replace("|", " AND ")
-                    m_id = f"{court} | {emoji} {color} | {time} | {p1_d} vs {p2_d}"
+                    # Short ID to prevent editor clipping/SyntaxError
+                    m_id = f"{day[:1]}{idx}{c[0]}"
                     
                     matches.append({"ID": m_id, "Day": day, "T": time, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
                     team_colors[t1] = team_colors[t2] = color
                     
-                    # Scores and Points
+                    # Score Parsing
                     sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
                     db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3], "w1":w1, "l1":w2, "w2":w2, "l2":w1}
@@ -77,7 +78,7 @@ st.title("🏸 SMASH 2026")
 sch, clrs, csv_db = load_data()
 
 if sch is None or sch.empty:
-    st.warning("Data not found. Ensure the CSV is named exactly 'SMASH 2026 - Score Tracker.csv'.")
+    st.warning("Data not found. Ensure the CSV is named 'SMASH 2026 - Score Tracker.csv'.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
     tab1, tab2 = st.tabs(["📊 Standings", "📅 Schedule"])
@@ -96,7 +97,9 @@ else:
         for color in sorted(df_r["Bracket"].unique()):
             st.subheader(f"{EMOJIS.get(color.upper(), '🏆')} {color} Bracket")
             sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won","Total Pts"], ascending=False).reset_index(drop=True)
-            sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
+            # Split into two lines to avoid clipping the end of the line
+            rk_list = [get_rank_str(i+1) for i in range(len(sdf))]
+            sdf.insert(0, "Rank", rk_list)
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     with tab2:
