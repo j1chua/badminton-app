@@ -57,7 +57,7 @@ def load_data():
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 3. Styling
+# 3. Styling - Added specific colors for winners by bracket
 st.markdown("""
 <style>
     .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
@@ -65,6 +65,14 @@ st.markdown("""
     .m-table td { text-align: center !important; padding: 10px; border: 1px solid #ddd; }
     .m-table tr:nth-child(even) { background-color: #f9f9f9; }
     .forfeit { color: #d32f2f; font-weight: bold; }
+    
+    /* Winner highlights that match the bracket color */
+    .win-red { color: red; font-weight: bold; text-decoration: underline; }
+    .win-green { color: green; font-weight: bold; text-decoration: underline; }
+    .win-purple { color: purple; font-weight: bold; text-decoration: underline; }
+    .win-yellow { color: #d4af37; font-weight: bold; text-decoration: underline; }
+    .win-black { color: black; font-weight: bold; text-decoration: underline; }
+    .win-white { color: gray; font-weight: bold; text-decoration: underline; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,8 +115,14 @@ else:
                         s1 = s2 = '<span class="forfeit">FORFEIT</span>'
                     else:
                         s1, s2 = f"{d['s1']} - {d['s3']}", f"{d['s2']} - {d['s4']}"
-                        # Apply bracket color to the underline if they won both sets
-                        b_color = r["L"].lower()
-                        p1_tag = f'<span style="text-decoration: underline; font-weight: bold; color: {b_color};">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
-                        p2_tag = f'<span style="text-decoration: underline; font-weight: bold; color: {b_color};">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
+                        
+                        # Use a CSS class instead of a style attribute
+                        win_cls = f"win-{r['L'].lower()}"
+                        p1_tag = f'<span class="{win_cls}">{r["P1"]}</span>' if d['w1'] == 2 else r["P1"]
+                        p2_tag = f'<span class="{win_cls}">{r["P2"]}</span>' if d['w2'] == 2 else r["P2"]
                         match_display = f"{p1_tag} vs {p2_tag}"
+                
+                rows.append({"Time": r["T"], "Court": r["Court"], "Bracket": f"{r['Emoji']} {r['L']}", "Match": match_display, "Set 1": s1, "Set 2": s2})
+        
+        if rows: 
+            st.write(pd.DataFrame(rows).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
