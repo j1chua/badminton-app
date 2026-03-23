@@ -23,7 +23,7 @@ def load_finals():
         except: return {}
     return {}
 
-# 3. Tournament Data Loading (Day 1/2 Logic)
+# 3. Tournament Data Loading
 @st.cache_data
 def load_data():
     if not os.path.exists(FN): return None, {}, {}
@@ -47,7 +47,7 @@ def load_data():
                     team_colors[t1] = team_colors[t2] = color
                     sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
-                    db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "w1":w1, "w2":w2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3]}
+                    db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "w1":w1, "w2":w2}
                 except: continue
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
@@ -58,8 +58,7 @@ st.markdown("""
     .bracket-header { background-color: #000; color: #fff; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; font-weight: bold; }
     .winner-text { color: #2e7d32; font-weight: bold; text-decoration: underline; }
     .score-badge { background: #f0f2f6; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #ddd; margin-right: 4px; }
-    .tie-warning { color: #d32f2f; font-weight: bold; font-size: 0.75rem; margin-top: -10px; display: block; }
-    /* Fix alignment for number inputs and selectboxes */
+    .tie-warning { color: #d32f2f; font-weight: bold; font-size: 0.75rem; display: block; }
     div[data-testid="stHorizontalBlock"] { align-items: center; }
 </style>
 """, unsafe_allow_html=True)
@@ -71,54 +70,58 @@ if sch is None or sch.empty:
     st.warning("Please ensure the CSV file is uploaded.")
 else:
     if 'db' not in st.session_state: st.session_state.db = csv_db
+    # Initialize reset triggers in session state
+    if 'reset_n' not in st.session_state: st.session_state.reset_n = 0
+    
     current_finals = load_finals()
     tab1, tab2, tab3, tab_view, tab_admin = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
     black_teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == "BLACK"])
 
-    # --- ADMIN TAB (Aligned & Fixed) ---
+    # --- ADMIN TAB ---
     with tab_admin:
         pw = st.text_input("Admin Password", type="password")
         if pw == ADMIN_PW:
             st.markdown('<div class="bracket-header">⚙️ ADMIN CONTROL - BLACK BRACKET</div>', unsafe_allow_html=True)
             
             def admin_match(label, k, p1_def, p2_def):
+                # Unique version key to force-reset widgets
+                v = st.session_state.reset_n
                 st.write(f"**{label}**")
                 d = current_finals.get(k, {"t1":p1_def, "t2":p2_def, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False})
                 
-                # Optimized column width ratios for a single row
                 c1, c2, c3, c4, c5 = st.columns([3, 1, 1, 1.5, 0.8])
                 
                 with c1:
-                    t1 = st.selectbox(f"T1", [p1_def] + black_teams, index=0 if d['t1'] not in black_teams else black_teams.index(d['t1'])+1, key=f"t1_{k}", label_visibility="collapsed")
-                    t2 = st.selectbox(f"T2", [p2_def] + black_teams, index=0 if d['t2'] not in black_teams else black_teams.index(d['t2'])+1, key=f"t2_{k}", label_visibility="collapsed")
-                
+                    t1 = st.selectbox(f"T1", [p1_def] + black_teams, index=0 if d['t1'] not in black_teams else black_teams.index(d['t1'])+1, key=f"t1_{k}_{v}", label_visibility="collapsed")
+                    t2 = st.selectbox(f"T2", [p2_def] + black_teams, index=0 if d['t2'] not in black_teams else black_teams.index(d['t2'])+1, key=f"t2_{k}_{v}", label_visibility="collapsed")
                 with c2:
-                    s1a = st.number_input("S1a", 0, 31, value=d['s1a'], key=f"s1a_{k}", label_visibility="collapsed")
-                    s1b = st.number_input("S1b", 0, 31, value=d['s1b'], key=f"s1b_{k}", label_visibility="collapsed")
-                
+                    s1a = st.number_input("S1a", 0, 31, value=d['s1a'], key=f"s1a_{k}_{v}", label_visibility="collapsed")
+                    s1b = st.number_input("S1b", 0, 31, value=d['s1b'], key=f"s1b_{k}_{v}", label_visibility="collapsed")
                 with c3:
-                    s2a = st.number_input("S2a", 0, 31, value=d['s2a'], key=f"s2a_{k}", label_visibility="collapsed")
-                    s2b = st.number_input("S2b", 0, 31, value=d['s2b'], key=f"s2b_{k}", label_visibility="collapsed")
+                    s2a = st.number_input("S2a", 0, 31, value=d['s2a'], key=f"s2a_{k}_{v}", label_visibility="collapsed")
+                    s2b = st.number_input("S2b", 0, 31, value=d['s2b'], key=f"s2b_{k}_{v}", label_visibility="collapsed")
                 
-                # Winner logic for Set 3 requirement
                 sw1_base = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
                 sw2_base = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (sw1_base == 1 and sw2_base == 1)
 
                 with c4:
-                    if is_tie: st.markdown('<span class="tie-warning">TIE (1-1) - ADD SET 3</span>', unsafe_allow_html=True)
-                    has_s3 = st.toggle("Set 3", value=d.get('has_s3', False), key=f"tog_{k}")
+                    if is_tie: st.markdown('<span class="tie-warning">1-1 TIE! ⬇️</span>', unsafe_allow_html=True)
+                    has_s3 = st.toggle("Set 3", value=d.get('has_s3', False), key=f"tog_{k}_{v}")
                     s3a, s3b = 0, 0
                     if has_s3:
                         s3_cols = st.columns(2)
-                        s3a = s3_cols[0].number_input("S3a", 0, 31, value=d.get('s3a', 0), key=f"s3a_{k}", label_visibility="collapsed")
-                        s3b = s3_cols[1].number_input("S3b", 0, 31, value=d.get('s3b', 0), key=f"s3b_{k}", label_visibility="collapsed")
+                        s3a = s3_cols[0].number_input("S3a", 0, 31, value=d.get('s3a', 0), key=f"s3a_{k}_{v}", label_visibility="collapsed")
+                        s3b = s3_cols[1].number_input("S3b", 0, 31, value=d.get('s3b', 0), key=f"s3b_{k}_{v}", label_visibility="collapsed")
                 
                 with c5:
-                    if st.button("Reset", key=f"reset_{k}", use_container_width=True):
+                    if st.button("Reset", key=f"btn_reset_{k}_{v}", use_container_width=True):
+                        # Clear persistent data
                         current_finals[k] = {"t1":p1_def, "t2":p2_def, "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "has_s3": False, "winner":"TBD"}
                         save_finals(current_finals)
+                        # Increment version to force widget reset
+                        st.session_state.reset_n += 1
                         st.rerun()
 
                 total_w1 = sw1_base + (1 if has_s3 and s3a > s3b else 0)
@@ -139,6 +142,7 @@ else:
                 save_finals(new_data)
                 st.success("Scores saved successfully!")
                 st.rerun()
+        elif pw != "": st.error("Access Denied.")
 
     # --- VIEW-ONLY FINALS ---
     with tab_view:
