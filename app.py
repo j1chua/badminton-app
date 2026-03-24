@@ -34,13 +34,9 @@ def get_rank_str(i):
     suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
     return f"{i}{suffix}"
 
-# 2. Data Loading Logic with Cache Invalidation
+# 2. Data Loading Logic
 @st.cache_data
 def load_data(mtime):
-    """
-    mtime is passed here so that if the file modification time changes, 
-    Streamlit will clear the cache and re-run this function.
-    """
     if not os.path.exists(FN): return None, {}, {}
     try:
         df = pd.read_csv(FN, header=None).fillna("")
@@ -57,27 +53,22 @@ def load_data(mtime):
                     if "|" not in t1 or "|" not in t2: continue
                     color = str(row[c[1]]).strip().upper()
                     time_val, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
-                    
                     court = "Court ?"
                     for r_idx in range(idx, -1, -1):
                         val = str(df.iloc[r_idx, c[2]]).upper()
                         if "COURT" in val: court = val.strip(); break
-                    
                     p1_d, p2_d = t1.replace("|", " AND "), t2.replace("|", " AND ")
                     m_id = f"{day[:1]}{idx}{c[0]}"
                     matches.append({"ID": m_id, "Day": day, "T": time_val, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
                     team_colors[t1] = team_colors[t2] = color
-                    
-                    # Score Parsing
                     sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
                     db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3], "w1":w1, "w2":w2}
                 except: continue
         return pd.DataFrame(matches), team_colors, db
-    except Exception as e:
-        return None, {}, {}
+    except: return None, {}, {}
 
-# 3. Styling
+# 3. Styling & Trademark
 st.markdown("""
 <style>
     .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
@@ -90,19 +81,31 @@ st.markdown("""
     .win-black { color: black; } .win-red { color: red; } .win-green { color: green; }
     .win-purple { color: purple; } .win-white { color: grey; } .win-yellow { color: #fbc02d; }
     .ongoing-box { background-color: #fff9c4; border: 2px dashed #fbc02d; padding: 30px; border-radius: 10px; text-align: center; font-size: 1.5em; color: #827717; font-weight: bold; }
+    
+    /* Trademark Styling */
+    .trademark {
+        position: fixed;
+        bottom: 10px;
+        right: 15px;
+        font-size: 10px;
+        color: #999;
+        font-family: sans-serif;
+        letter-spacing: 1px;
+        z-index: 1000;
+    }
 </style>
+<div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
 st.title("🏸 SMASH 2026")
 
-# Detect file changes automatically
+# Detect file changes
 file_mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(file_mtime)
 
 if sch is None or sch.empty:
-    st.warning("Data not found. Please ensure the CSV file is uploaded correctly.")
+    st.warning("Data not found.")
 else:
-    # Use session state to allow real-time updates without cache lag
     st.session_state.db = csv_db
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
@@ -118,10 +121,8 @@ else:
                 stats[v['t1']]["Games Played"] += 1; stats[v['t1']]["Sets Won"] += v['w1']; stats[v['t1']]["Sets Lost"] += v['w2']; stats[v['t1']]["Total Pts"] += v['p1']
             if v['t2'] in stats:
                 stats[v['t2']]["Games Played"] += 1; stats[v['t2']]["Sets Won"] += v['w2']; stats[v['t2']]["Sets Lost"] += v['w1']; stats[v['t2']]["Total Pts"] += v['p2']
-        
         df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
         df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
-        
         for color in all_brackets:
             st.subheader(f"{EMOJIS.get(color, '🏆')} {color} Bracket")
             sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won", "Total Pts"], ascending=False).reset_index(drop=True)
@@ -174,12 +175,8 @@ else:
     # --- ADMIN ---
     with tabs[4]:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
-            
-            st.warning("⚠️ Changes to the CSV file are detected automatically. If you don't see them, click below.")
             if st.button("🔄 Force Refresh Data"):
-                st.cache_data.clear()
-                st.rerun()
-
+                st.cache_data.clear(); st.rerun()
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
@@ -189,7 +186,6 @@ else:
                 match_id = f"{sel_a}_{suffix}"
                 v = st.session_state.reset_versions.get(match_id, 0)
                 d = st.session_state.finals.get(match_id, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
-                
                 c_title, c_reset = st.columns([5, 1])
                 with c_title: st.write(f"### {label}")
                 with c_reset:
@@ -197,7 +193,6 @@ else:
                         if match_id in st.session_state.finals: del st.session_state.finals[match_id]
                         st.session_state.reset_versions[match_id] = v + 1
                         save_finals(st.session_state.finals); st.rerun()
-
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
                 with c1:
                     t_opts = ["TBD"] + teams
@@ -209,16 +204,13 @@ else:
                 with c3: 
                     s2a = st.number_input("S2 T1", 0, 31, int(d['s2a']), key=f"s2a_{match_id}_{v}")
                     s2b = st.number_input("S2 T2", 0, 31, int(d['s2b']), key=f"s2b_{match_id}_{v}")
-                
                 w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
                 w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (w1_temp == 1 and w2_temp == 1)
-                
                 with c4:
                     use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
                     s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"s3a_{match_id}_{v}", disabled=not use_s3)
                     s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"s3b_{match_id}_{v}", disabled=not use_s3)
-                
                 if st.button(f"Save {label}", key=f"save_{match_id}_{v}"):
                     sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
                     sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
@@ -229,5 +221,4 @@ else:
                     }
                     save_finals(st.session_state.finals); st.success("Saved!")
                 st.divider()
-
             a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
