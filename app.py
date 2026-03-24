@@ -5,7 +5,7 @@ import json
 import time
 
 # 1. Page Configuration
-st.set_page_config(page_title="SMASH 2026", layout="wide")
+st.set_page_config(page_title="GCCP SMASH S1 2026", layout="wide")
 FN = "SMASH 2026 - Score Tracker.csv"
 SAVE_FN = "finals_data.json"
 EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"}
@@ -68,7 +68,7 @@ def load_data(mtime):
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 3. Styling & Centered Trademark
+# 3. Styling & Trademark
 st.markdown("""
 <style>
     .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-family: sans-serif; }
@@ -82,7 +82,6 @@ st.markdown("""
     .win-purple { color: purple; } .win-white { color: grey; } .win-yellow { color: #fbc02d; }
     .ongoing-box { background-color: #fff9c4; border: 2px dashed #fbc02d; padding: 30px; border-radius: 10px; text-align: center; font-size: 1.5em; color: #827717; font-weight: bold; }
     
-    /* Centered Trademark Styling */
     .trademark {
         position: fixed;
         bottom: 10px;
@@ -100,7 +99,7 @@ st.markdown("""
 <div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
-st.title("🏸 SMASH 2026")
+st.title("🏸 GCCP SMASH S1 2026")
 
 # 4. App Logic
 file_mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
