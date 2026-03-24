@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+import time
 
 # 1. Page Configuration
 st.set_page_config(page_title="SMASH 2026", layout="wide")
@@ -33,9 +34,13 @@ def get_rank_str(i):
     suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
     return f"{i}{suffix}"
 
-# 2. Data Loading Logic
+# 2. Data Loading Logic with Cache Invalidation
 @st.cache_data
-def load_data():
+def load_data(mtime):
+    """
+    mtime is passed here so that if the file modification time changes, 
+    Streamlit will clear the cache and re-run this function.
+    """
     if not os.path.exists(FN): return None, {}, {}
     try:
         df = pd.read_csv(FN, header=None).fillna("")
@@ -51,21 +56,26 @@ def load_data():
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     if "|" not in t1 or "|" not in t2: continue
                     color = str(row[c[1]]).strip().upper()
-                    time, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
+                    time_val, emoji = str(row[c[0]]).strip(), EMOJIS.get(color, "🏸")
+                    
                     court = "Court ?"
                     for r_idx in range(idx, -1, -1):
                         val = str(df.iloc[r_idx, c[2]]).upper()
                         if "COURT" in val: court = val.strip(); break
+                    
                     p1_d, p2_d = t1.replace("|", " AND "), t2.replace("|", " AND ")
                     m_id = f"{day[:1]}{idx}{c[0]}"
-                    matches.append({"ID": m_id, "Day": day, "T": time, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
+                    matches.append({"ID": m_id, "Day": day, "T": time_val, "T1": t1, "T2": t2, "P1": p1_d, "P2": p2_d, "L": color, "Emoji": emoji, "Court": court})
                     team_colors[t1] = team_colors[t2] = color
+                    
+                    # Score Parsing
                     sc = [int(float(row[col])) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     w1, w2 = (sc[0]>sc[2])+(sc[1]>sc[3]), (sc[2]>sc[0])+(sc[3]>sc[1])
                     db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, "p1":sc[0]+sc[1], "p2":sc[2]+sc[3], "w1":w1, "w2":w2}
                 except: continue
         return pd.DataFrame(matches), team_colors, db
-    except: return None, {}, {}
+    except Exception as e:
+        return None, {}, {}
 
 # 3. Styling
 st.markdown("""
@@ -84,13 +94,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🏸 SMASH 2026")
-sch, clrs, csv_db = load_data()
+
+# Detect file changes automatically
+file_mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
+sch, clrs, csv_db = load_data(file_mtime)
 
 if sch is None or sch.empty:
-    st.warning("Data not found.")
+    st.warning("Data not found. Please ensure the CSV file is uploaded correctly.")
 else:
-    # Initialize session states
-    if 'db' not in st.session_state: st.session_state.db = csv_db
+    # Use session state to allow real-time updates without cache lag
+    st.session_state.db = csv_db
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
     
@@ -105,8 +118,10 @@ else:
                 stats[v['t1']]["Games Played"] += 1; stats[v['t1']]["Sets Won"] += v['w1']; stats[v['t1']]["Sets Lost"] += v['w2']; stats[v['t1']]["Total Pts"] += v['p1']
             if v['t2'] in stats:
                 stats[v['t2']]["Games Played"] += 1; stats[v['t2']]["Sets Won"] += v['w2']; stats[v['t2']]["Sets Lost"] += v['w1']; stats[v['t2']]["Total Pts"] += v['p2']
+        
         df_r = pd.DataFrame.from_dict(stats, orient='index').reset_index().rename(columns={'index':'Team'})
         df_r["Team"] = df_r["Team"].str.replace("|", " AND ", regex=False)
+        
         for color in all_brackets:
             st.subheader(f"{EMOJIS.get(color, '🏆')} {color} Bracket")
             sdf = df_r[df_r["Bracket"]==color].sort_values(["Sets Won", "Total Pts"], ascending=False).reset_index(drop=True)
@@ -117,9 +132,7 @@ else:
     with tabs[1]:
         q = st.text_input("🔍 Search Team Name", key="q1").lower()
         rows = []
-        day1_df = sch[sch["Day"] == "Day 1"].copy()
-        day1_df = day1_df.sort_values(by="Court")
-        
+        day1_df = sch[sch["Day"] == "Day 1"].copy().sort_values(by="Court")
         for _, r in day1_df.iterrows():
             if q in r['T1'].lower() or q in r['T2'].lower():
                 d = st.session_state.db.get(r["ID"])
@@ -150,8 +163,7 @@ else:
             with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
             with c2:
                 h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
-                if d.get('use_s3'):
-                    h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
+                if d.get('use_s3'): h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
                 st.markdown(h, unsafe_allow_html=True)
             with c3:
                 if d['sw1'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
@@ -162,6 +174,12 @@ else:
     # --- ADMIN ---
     with tabs[4]:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
+            
+            st.warning("⚠️ Changes to the CSV file are detected automatically. If you don't see them, click below.")
+            if st.button("🔄 Force Refresh Data"):
+                st.cache_data.clear()
+                st.rerun()
+
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
@@ -176,8 +194,7 @@ else:
                 with c_title: st.write(f"### {label}")
                 with c_reset:
                     if st.button(f"🗑️ Reset", key=f"reset_{match_id}_{v}"):
-                        if match_id in st.session_state.finals:
-                            del st.session_state.finals[match_id]
+                        if match_id in st.session_state.finals: del st.session_state.finals[match_id]
                         st.session_state.reset_versions[match_id] = v + 1
                         save_finals(st.session_state.finals); st.rerun()
 
