@@ -183,4 +183,45 @@ else:
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
-            st.markdown(f'
+            st.markdown(f'<div class="bracket-header" style="background-color: {bg_color}">⚙️ ADMIN CONTROL - {sel_a}</div>', unsafe_allow_html=True)
+
+            def a_m(label, suffix):
+                match_id = f"{sel_a}_{suffix}"
+                v = st.session_state.reset_versions.get(match_id, 0)
+                d = st.session_state.finals.get(match_id, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "use_s3":False})
+                c_title, c_reset = st.columns([5, 1])
+                with c_title: st.write(f"### {label}")
+                with c_reset:
+                    if st.button(f"🗑️ Reset", key=f"reset_{match_id}_{v}"):
+                        if match_id in st.session_state.finals: del st.session_state.finals[match_id]
+                        st.session_state.reset_versions[match_id] = v + 1
+                        save_finals(st.session_state.finals); st.rerun()
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
+                with c1:
+                    t_opts = ["TBD"] + teams
+                    t1 = st.selectbox(f"T1", t_opts, index=t_opts.index(d['t1']) if d['t1'] in t_opts else 0, key=f"t1_{match_id}_{v}")
+                    t2 = st.selectbox(f"T2", t_opts, index=t_opts.index(d['t2']) if d['t2'] in t_opts else 0, key=f"t2_{match_id}_{v}")
+                with c2: 
+                    s1a = st.number_input("S1 T1", 0, 31, int(d['s1a']), key=f"s1a_{match_id}_{v}")
+                    s1b = st.number_input("S1 T2", 0, 31, int(d['s1b']), key=f"s1b_{match_id}_{v}")
+                with c3: 
+                    s2a = st.number_input("S2 T1", 0, 31, int(d['s2a']), key=f"s2a_{match_id}_{v}")
+                    s2b = st.number_input("S2 T2", 0, 31, int(d['s2b']), key=f"s2b_{match_id}_{v}")
+                w1_temp = (1 if s1a > s1b else 0) + (1 if s2a > s2b else 0)
+                w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
+                is_tie = (w1_temp == 1 and w2_temp == 1)
+                with c4:
+                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
+                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"s3a_{match_id}_{v}", disabled=not use_s3)
+                    s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"s3b_{match_id}_{v}", disabled=not use_s3)
+                if st.button(f"Save {label}", key=f"save_{match_id}_{v}"):
+                    sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
+                    sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
+                    st.session_state.finals[match_id] = {
+                        "t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, 
+                        "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, 
+                        "sw1":sw1, "sw2":sw2, "use_s3":use_s3
+                    }
+                    save_finals(st.session_state.finals); st.success("Saved!")
+                st.divider()
+            a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
