@@ -168,6 +168,7 @@ if sch is not None:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
             sdf = df_stand[df_stand["Bracket"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
+            # FIXED: Drop "Bracket" not "B"
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
         
         if mtime > 0:
@@ -221,14 +222,16 @@ if sch is not None:
     with tabs[4]: # ADMIN
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             
-            # --- DATA EXPORT / TEMPLATE SECTION ---
+            # --- ALIGNED EXPORT SECTION ---
             st.subheader("📥 Data Export")
-            col_a, col_b = st.columns([2, 1])
-            with col_a:
-                st.write("Download the current standings to use as a template or backup.")
-            with col_b:
-                csv_data = df_stand.to_csv(index=False).encode('utf-8')
-                st.download_button(label="Download CSV Template", data=csv_data, file_name=f"smash_template_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
+            st.write("Download the current standings to use as a template or backup.")
+            csv_data = df_stand.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download CSV Template", 
+                data=csv_data, 
+                file_name=f"smash_template_{datetime.now().strftime('%Y%m%d')}.csv", 
+                mime='text/csv'
+            )
             st.divider()
 
             if st.button("🔄 Force Refresh Data"):
