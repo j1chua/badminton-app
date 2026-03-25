@@ -51,7 +51,6 @@ st.markdown("""
         margin: 0 auto;
     }
 
-    /* Modern Table with Sticky Header */
     .m-table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -154,7 +153,7 @@ if sch is not None:
 
     with tabs[0]: # STANDINGS
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
+        df_stand = pd.DataFrame([{"Team":t, "Bracket":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
@@ -164,12 +163,12 @@ if sch is not None:
                         i = i_list[0]
                         df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
                         df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
+        
         for col in all_brackets:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
-            sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
+            sdf = df_stand[df_stand["Bracket"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
-            # FIXED: Corrected unsafe_allow_html parameter below
-            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+            st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
         
         if mtime > 0:
             st.markdown(f'<div class="sync-text">Scores last synced: {datetime.fromtimestamp(mtime).strftime("%I:%M %p, %b %d")}</div>', unsafe_allow_html=True)
@@ -221,8 +220,20 @@ if sch is not None:
 
     with tabs[4]: # ADMIN
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
+            
+            # --- DATA EXPORT / TEMPLATE SECTION ---
+            st.subheader("📥 Data Export")
+            col_a, col_b = st.columns([2, 1])
+            with col_a:
+                st.write("Download the current standings to use as a template or backup.")
+            with col_b:
+                csv_data = df_stand.to_csv(index=False).encode('utf-8')
+                st.download_button(label="Download CSV Template", data=csv_data, file_name=f"smash_template_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
+            st.divider()
+
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
+                
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
