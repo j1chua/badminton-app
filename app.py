@@ -16,7 +16,7 @@ COLOR_MAP = {
     "BLACK": "#000000", "RED": "#d32f2f", "GREEN": "#2e7d32", 
     "PURPLE": "#7b1fa2", "WHITE": "#9e9e9e", "YELLOW": "#fbc02d"
 }
-# Filter out these placeholders from Standings and Match lists
+# Only used to filter the STANDINGS tab
 IGNORE_TEAMS = ["TBD", "1ST", "2ND", "3RD", "4TH", "5TH", "TBA"]
 
 # 2. Persistence Logic
@@ -77,10 +77,8 @@ def load_data(mtime):
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     bracket_raw = str(row[c[1]]).strip().upper()
                     
-                    # VALIDATION: Skip if header, empty, results text, or a placeholder like TBD/1st
                     if not bracket_raw or "BRACKET" in bracket_raw or "COLOR" in bracket_raw: continue
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
-                    if any(p in t1.upper() for p in IGNORE_TEAMS) or any(p in t2.upper() for p in IGNORE_TEAMS): continue
                     
                     is_high_stakes = "SEMIS" in bracket_raw or "FINALS" in bracket_raw
                     base_color = "WHITE"
@@ -98,8 +96,9 @@ def load_data(mtime):
                                    "Bracket":bracket_raw, "Emoji":EMOJIS.get(base_color,"🏸"), 
                                    "Court":court, "HighStakes":is_high_stakes, "L": base_color})
                     
-                    team_colors[t1] = base_color
-                    team_colors[t2] = base_color
+                    # Only register for Standings if NOT a placeholder
+                    if not any(p in t1.upper() for p in IGNORE_TEAMS): team_colors[t1] = base_color
+                    if not any(p in t2.upper() for p in IGNORE_TEAMS): team_colors[t2] = base_color
                     
                     sc = [int(float(str(row[col]).strip())) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7]]]
                     db[m_id] = {"s1":sc[0], "s2":sc[1], "s3":sc[2], "s4":sc[3], "t1":t1, "t2":t2, 
@@ -123,15 +122,17 @@ if sch is not None:
     all_brackets = sorted(list(set(clrs.values())))
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
-    with tabs[0]: # STANDINGS
+    with tabs[0]: # STANDINGS (Placeholder filtering handled in clrs)
         df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
                 if v.get(tk) in clrs:
-                    i = df_stand.index[df_stand['Team']==v[tk]][0]
-                    df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
-                    df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
+                    i_list = df_stand.index[df_stand['Team']==v[tk]].tolist()
+                    if i_list:
+                        i = i_list[0]
+                        df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
+                        df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
         
         for col in all_brackets:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
