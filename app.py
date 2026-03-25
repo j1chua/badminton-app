@@ -51,6 +51,7 @@ st.markdown("""
         margin: 0 auto;
     }
 
+    /* Modern Table with Sticky Header */
     .m-table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -84,6 +85,7 @@ st.markdown("""
     .high-stakes { background-color: #fffde7 !important; }
     .winner-text { font-weight: 800; color: #2e7d32; }
     .status-pending { color: #adb5bd; font-style: italic; font-size: 0.85em; }
+    .sync-text { font-size: 0.8em; color: #888; text-align: center; margin-top: 20px; font-style: italic; }
     
     .trademark { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #bbb; letter-spacing: 3px; z-index: 1000; text-align: center; width: 100%; font-weight: 300; }
 </style>
@@ -152,7 +154,6 @@ if sch is not None:
 
     with tabs[0]: # STANDINGS
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        # RESTORED FULL TITLES HERE
         df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
@@ -167,7 +168,11 @@ if sch is not None:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
             sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
-            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_True)
+        
+        # ADDED SYNC TEXT
+        if mtime > 0:
+            st.markdown(f'<div class="sync-text">Scores last synced: {datetime.fromtimestamp(mtime).strftime("%I:%M %p, %b %d")}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     def render_matches(df_slice, key, day_label):
@@ -218,8 +223,6 @@ if sch is not None:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
-            if mtime > 0:
-                st.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
