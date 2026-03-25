@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+from datetime import datetime
 
 # 1. Page Configuration
 st.set_page_config(page_title="GCCP SMASH S1 2026", layout="wide")
@@ -16,7 +17,7 @@ COLOR_MAP = {
     "PURPLE": "#7b1fa2", "WHITE": "#9e9e9e", "YELLOW": "#fbc02d"
 }
 
-# 2. Persistence Logic (Direct from your file)
+# 2. Persistence Logic
 def save_finals(data):
     with open(SAVE_FN, "w") as f:
         json.dump(data, f)
@@ -110,6 +111,10 @@ st.title("🏸 GCCP SMASH S1 2026")
 mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(mtime)
 
+# Sidebar Timestamp
+if mtime > 0:
+    st.sidebar.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
+
 if sch is not None:
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
@@ -117,9 +122,10 @@ if sch is not None:
     all_brackets = sorted(list(set(clrs.values())))
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
-    with tabs[0]: # STANDINGS
+    with tabs[0]: # STANDINGS (Fixed Games Played logic)
         df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
+            if not v.get('started'): continue # SKIP IF NOT STARTED
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
                 if v.get(tk) in clrs:
                     i = df_stand.index[df_stand['Team']==v[tk]][0]
@@ -151,7 +157,7 @@ if sch is not None:
     with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1")
     with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2")
 
-    with tabs[3]: # FINALS VIEW (Exact logic from your file)
+    with tabs[3]: # FINALS VIEW
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
         st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
         def v_m(label, suffix):
@@ -170,7 +176,7 @@ if sch is not None:
             st.divider()
         v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
 
-    with tabs[4]: # ADMIN (Exact design & functionality from your file)
+    with tabs[4]: # ADMIN
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
@@ -205,17 +211,4 @@ if sch is not None:
                 w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (w1_temp == 1 and w2_temp == 1)
                 with c4:
-                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
-                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"s3a_{match_id}_{v}", disabled=not use_s3)
-                    s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"s3b_{match_id}_{v}", disabled=not use_s3)
-                if st.button(f"Save {label}", key=f"save_{match_id}_{v}"):
-                    sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
-                    sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
-                    st.session_state.finals[match_id] = {
-                        "t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, 
-                        "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, 
-                        "sw1":sw1, "sw2":sw2, "use_s3":use_s3
-                    }
-                    save_finals(st.session_state.finals); st.success("Saved!"); st.rerun()
-                st.divider()
-            a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
+                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}",
