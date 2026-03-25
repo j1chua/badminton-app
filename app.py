@@ -168,9 +168,9 @@ if sch is not None:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
             sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
-            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_True)
+            # FIXED: Corrected unsafe_allow_html parameter below
+            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
         
-        # ADDED SYNC TEXT
         if mtime > 0:
             st.markdown(f'<div class="sync-text">Scores last synced: {datetime.fromtimestamp(mtime).strftime("%I:%M %p, %b %d")}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
