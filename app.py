@@ -99,7 +99,7 @@ st.markdown("""
 <div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
-st.title("🏸 GCCP SMASH S1 2026")
+st.title("🧪 UAT - GCCP SMASH S1 2026")
 
 # 4. App Logic
 file_mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
