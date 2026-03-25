@@ -42,17 +42,14 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;600;800&display=swap');
     
-    /* Global Font & Consistency */
     html, body, [class*="css"], .stMarkdown, p, div, table, h1, h2, h3 {
         font-family: 'Be Vietnam Pro', sans-serif !important;
     }
 
-    /* Force consistent width for all tabs */
-    .block-container {
-        max-width: 1000px;
-        padding-top: 2rem;
-        padding-bottom: 5rem;
-        margin: auto;
+    /* Table Container: Centered and consistent width across all tabs */
+    .table-container {
+        width: 95%;
+        margin: 0 auto;
     }
 
     /* Modern Table: No vertical lines */
@@ -65,21 +62,19 @@ st.markdown("""
         background-color: #ffffff; 
         text-align: center !important; 
         padding: 16px; 
-        border-bottom: 2px solid #333; /* Thick header separator */
+        border-bottom: 2px solid #333; 
         font-weight: 800; 
         color: #111;
         text-transform: uppercase;
         font-size: 0.9em;
-        letter-spacing: 1px;
     }
     .m-table td { 
         text-align: center !important; 
         padding: 14px; 
-        border-bottom: 1px solid #eee; /* Light horizontal only */
+        border-bottom: 1px solid #eee; 
         vertical-align: middle; 
     }
     
-    /* Row effects */
     .m-table tr:hover { background-color: #fafafa; }
     
     .bracket-header { color: #fff; padding: 12px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold; font-size: 1.2em;}
@@ -155,6 +150,7 @@ if sch is not None:
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
     with tabs[0]: # STANDINGS
+        st.markdown('<div class="table-container">', unsafe_allow_html=True)
         df_stand = pd.DataFrame([{"Team":t, "B":c, "GP":0, "SW":0, "SL":0, "Pts":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
@@ -170,8 +166,10 @@ if sch is not None:
             sdf = df_stand[df_stand["B"]==col].sort_values(["SW","Pts"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     def render_matches(df_slice, key, day_label):
+        st.markdown('<div class="table-container">', unsafe_allow_html=True)
         search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
         for _, r in df_slice.iterrows():
@@ -188,11 +186,13 @@ if sch is not None:
                     s1 = s2 = f'<span class="status-pending">{status_text}</span>'
                 rows.append(f"<tr {row_cls}><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
         if rows: st.write(f"<table class='m-table'><thead><tr><th>Court</th><th>Time</th><th>Bracket</th><th>Match</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(rows)}</tbody></table>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1", "Day 1")
     with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2", "Day 2")
 
     with tabs[3]: # FINALS VIEW
+        st.markdown('<div class="table-container">', unsafe_allow_html=True)
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
         st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
         def v_m(label, suffix):
@@ -210,6 +210,7 @@ if sch is not None:
                 elif d['sw2'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
             st.divider()
         v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[4]: # ADMIN
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
