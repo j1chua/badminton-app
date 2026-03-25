@@ -39,7 +39,7 @@ st.markdown("""
 <div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
-# 3. Fail-Safe Data Loading
+# 3. Data Loading
 @st.cache_data
 def load_data(mtime):
     if not os.path.exists(FN): return None, {}, {}
@@ -47,8 +47,6 @@ def load_data(mtime):
         df = pd.read_csv(FN, header=None).fillna("")
         matches, team_colors, db = [], {}, {}
         day_context = "Day 1"
-        
-        # Block Mapping: [Time, Bracket, T1, T2, S1T1, S2T1, S1T2, S2T2]
         blocks = [[0,1,2,7,3,4,8,9], [13,14,15,20,16,17,21,22]]
         
         for idx, row in df.iterrows():
@@ -124,8 +122,7 @@ def get_rank_str(i):
     if i == 1: return "🥇 <b>1st</b>"
     if i == 2: return "🥈 <b>2nd</b>"
     if i == 3: return "🥉 <b>3rd</b>"
-    suffix = {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th") if not 10 <= i % 100 <= 20 else "th"
-    return f"{i}{suffix}"
+    return f"{i}th"
 
 if sch is None or sch.empty:
     st.error("Error loading CSV. Please check the file.")
@@ -148,7 +145,7 @@ else:
                 if d and d['started']:
                     s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
                 else:
-                    s1 = s2 = '<span class="status-pending">🕒 UPCOMING / IN PROGRESS</span>'
+                    s1 = s2 = '<span class="status-pending">🕒 MATCH IN PROGRESS</span>'
                 
                 rows.append(f"<tr {row_cls}><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{badge}{r['P1']} <b>vs</b> {r['P2']}</td><td>{s1}</td><td>{s2}</td></tr>")
         
@@ -160,11 +157,14 @@ else:
         for v in st.session_state.db.values():
             for team_key, win_key, lose_key, pt_key in [('t1','w1','w2','p1'), ('t2','w2','w1','p2')]:
                 if v.get(team_key) in clrs:
-                    idx = df_stand.index[df_stand['Team']==v[team_key]][0]
-                    df_stand.at[idx, 'GP'] += 1
-                    df_stand.at[idx, 'SW'] += v[win_key]
-                    df_stand.at[idx, 'SL'] += v[lose_key]
-                    df_stand.at[idx, 'Pts'] += v[pt_key]
+                    t_name = v[team_key]
+                    idx_list = df_stand.index[df_stand['Team']==t_name].tolist()
+                    if idx_list:
+                        idx = idx_list[0]
+                        df_stand.at[idx, 'GP'] += 1
+                        df_stand.at[idx, 'SW'] += v[win_key]
+                        df_stand.at[idx, 'SL'] += v[lose_key]
+                        df_stand.at[idx, 'Pts'] += v[pt_key]
         
         for color in sorted(list(set(clrs.values()))):
             st.subheader(f"{color} Bracket")
