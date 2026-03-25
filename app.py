@@ -46,13 +46,11 @@ st.markdown("""
         font-family: 'Be Vietnam Pro', sans-serif !important;
     }
 
-    /* Table Container: Centered and consistent width across all tabs */
     .table-container {
         width: 95%;
         margin: 0 auto;
     }
 
-    /* Modern Table: No vertical lines */
     .m-table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -66,7 +64,10 @@ st.markdown("""
         font-weight: 800; 
         color: #111;
         text-transform: uppercase;
-        font-size: 0.9em;
+        font-size: 0.85em;
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
     .m-table td { 
         text-align: center !important; 
@@ -151,7 +152,8 @@ if sch is not None:
 
     with tabs[0]: # STANDINGS
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        df_stand = pd.DataFrame([{"Team":t, "B":c, "GP":0, "SW":0, "SL":0, "Pts":0} for t,c in clrs.items()])
+        # RESTORED FULL TITLES HERE
+        df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
@@ -159,11 +161,11 @@ if sch is not None:
                     i_list = df_stand.index[df_stand['Team']==v[tk]].tolist()
                     if i_list:
                         i = i_list[0]
-                        df_stand.at[i,'GP']+=1; df_stand.at[i,'SW']+=v[wk]
-                        df_stand.at[i,'SL']+=v[lk]; df_stand.at[i,'Pts']+=v[pk]
+                        df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
+                        df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
         for col in all_brackets:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
-            sdf = df_stand[df_stand["B"]==col].sort_values(["SW","Pts"], ascending=False).reset_index(drop=True)
+            sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
