@@ -16,7 +16,6 @@ COLOR_MAP = {
     "BLACK": "#000000", "RED": "#d32f2f", "GREEN": "#2e7d32", 
     "PURPLE": "#7b1fa2", "WHITE": "#9e9e9e", "YELLOW": "#fbc02d"
 }
-# Only used to filter the STANDINGS tab
 IGNORE_TEAMS = ["TBD", "1ST", "2ND", "3RD", "4TH", "5TH", "TBA"]
 
 # 2. Persistence Logic
@@ -76,7 +75,6 @@ def load_data(mtime):
                 try:
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     bracket_raw = str(row[c[1]]).strip().upper()
-                    
                     if not bracket_raw or "BRACKET" in bracket_raw or "COLOR" in bracket_raw: continue
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
                     
@@ -96,7 +94,6 @@ def load_data(mtime):
                                    "Bracket":bracket_raw, "Emoji":EMOJIS.get(base_color,"🏸"), 
                                    "Court":court, "HighStakes":is_high_stakes, "L": base_color})
                     
-                    # Only register for Standings if NOT a placeholder
                     if not any(p in t1.upper() for p in IGNORE_TEAMS): team_colors[t1] = base_color
                     if not any(p in t2.upper() for p in IGNORE_TEAMS): team_colors[t2] = base_color
                     
@@ -118,11 +115,10 @@ sch, clrs, csv_db = load_data(mtime)
 if sch is not None:
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
-    
     all_brackets = sorted(list(set(clrs.values())))
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
-    with tabs[0]: # STANDINGS (Placeholder filtering handled in clrs)
+    with tabs[0]: # STANDINGS
         df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
@@ -133,14 +129,13 @@ if sch is not None:
                         i = i_list[0]
                         df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
                         df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
-        
         for col in all_brackets:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
             sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
-    def render_matches(df_slice, key):
+    def render_matches(df_slice, key, day_label):
         search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
         for _, r in df_slice.iterrows():
@@ -152,12 +147,15 @@ if sch is not None:
                     if d['w1']>d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
                     elif d['w2']>d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
                     s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
-                else: s1 = s2 = '<span class="status-pending">🕒 MATCH IN PROGRESS</span>'
+                else: 
+                    # Use specific status for Day 2
+                    status_text = "🕒 UPCOMING MATCH" if day_label == "Day 2" else "🕒 MATCH IN PROGRESS"
+                    s1 = s2 = f'<span class="status-pending">{status_text}</span>'
                 rows.append(f"<tr {row_cls}><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
         if rows: st.write(f"<table class='m-table'><thead><tr><th>Court</th><th>Time</th><th>Bracket</th><th>Match</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(rows)}</tbody></table>", unsafe_allow_html=True)
 
-    with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1")
-    with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2")
+    with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1", "Day 1")
+    with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2", "Day 2")
 
     with tabs[3]: # FINALS VIEW
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
@@ -184,7 +182,6 @@ if sch is not None:
                 st.cache_data.clear(); st.rerun()
             if mtime > 0:
                 st.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
-            
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
