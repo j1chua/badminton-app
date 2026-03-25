@@ -111,10 +111,6 @@ st.title("🏸 GCCP SMASH S1 2026")
 mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(mtime)
 
-# Sidebar Timestamp
-if mtime > 0:
-    st.sidebar.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
-
 if sch is not None:
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     if 'reset_versions' not in st.session_state: st.session_state.reset_versions = {}
@@ -122,10 +118,10 @@ if sch is not None:
     all_brackets = sorted(list(set(clrs.values())))
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
-    with tabs[0]: # STANDINGS (Fixed Games Played logic)
+    with tabs[0]: # STANDINGS
         df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
         for v in csv_db.values():
-            if not v.get('started'): continue # SKIP IF NOT STARTED
+            if not v.get('started'): continue 
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
                 if v.get(tk) in clrs:
                     i = df_stand.index[df_stand['Team']==v[tk]][0]
@@ -180,6 +176,11 @@ if sch is not None:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
+            
+            # Timestamp shown under the button
+            if mtime > 0:
+                st.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
+            
             sel_a = st.selectbox("Select Bracket:", all_brackets, key="admin_sel")
             bg_color = COLOR_MAP.get(sel_a, "#000")
             teams = sorted([t.replace("|", " AND ") for t, c in clrs.items() if c == sel_a])
