@@ -6,15 +6,12 @@ import json
 # 1. Page Configuration
 st.set_page_config(page_title="GCCP SMASH S1 2026", layout="wide")
 
-# File Constants
+# Constants
 FN = "SMASH 2026 - Score Tracker.csv"
-SAVE_FN = "finals_data.json"
 ADMIN_PW = "pogisiJordan"
-
-# UI Constants
 EMOJIS = {"BLACK": "⚫", "RED": "🔴", "GREEN": "🟢", "PURPLE": "🟣", "WHITE": "⚪", "YELLOW": "🟡"}
 
-# 2. Global Styling (Be Vietnam Pro)
+# 2. Global Styling (Be Vietnam Pro & Custom Badges)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;600;800&display=swap');
@@ -39,7 +36,7 @@ st.markdown("""
 <div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
-# 3. Data Loading
+# 3. Data Loading Logic
 @st.cache_data
 def load_data(mtime):
     if not os.path.exists(FN): return None, {}, {}
@@ -91,6 +88,7 @@ def load_data(mtime):
                     if "|" in t1: team_colors[t1] = base_color
                     if "|" in t2: team_colors[t2] = base_color
                     
+                    # Hardened Score Parsing
                     scores = []
                     for col_idx in [c[4], c[5], c[6], c[7]]:
                         val = str(row[col_idx]).strip()
@@ -110,10 +108,9 @@ def load_data(mtime):
                     }
                 except: continue
         return pd.DataFrame(matches), team_colors, db
-    except:
-        return None, {}, {}
+    except: return None, {}, {}
 
-# 4. App UI Logic
+# 4. UI Components
 st.title("🏸 GCCP SMASH S1 2026")
 mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(mtime)
@@ -125,11 +122,11 @@ def get_rank_str(i):
     return f"{i}th"
 
 if sch is None or sch.empty:
-    st.error("Error loading CSV. Please check the file.")
+    st.error("Error loading CSV file.")
 else:
-    st.session_state.db = csv_db
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
+    # --- Day Rendering Function ---
     def render_matches(df_slice, key):
         search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
@@ -154,27 +151,26 @@ else:
 
     with tabs[0]: # Standings
         df_stand = pd.DataFrame([{"Team":t, "B":c, "GP":0, "SW":0, "SL":0, "Pts":0} for t,c in clrs.items()])
-        for v in st.session_state.db.values():
-            for team_key, win_key, lose_key, pt_key in [('t1','w1','w2','p1'), ('t2','w2','w1','p2')]:
-                if v.get(team_key) in clrs:
-                    t_name = v[team_key]
-                    idx_list = df_stand.index[df_stand['Team']==t_name].tolist()
-                    if idx_list:
-                        idx = idx_list[0]
-                        df_stand.at[idx, 'GP'] += 1
-                        df_stand.at[idx, 'SW'] += v[win_key]
-                        df_stand.at[idx, 'SL'] += v[lose_key]
-                        df_stand.at[idx, 'Pts'] += v[pt_key]
+        for v in csv_db.values():
+            for t_k, w_k, l_k, p_k in [('t1','w1','w2','p1'), ('t2','w2','w1','p2')]:
+                if v.get(t_k) in clrs:
+                    idx_l = df_stand.index[df_stand['Team']==v[t_k]].tolist()
+                    if idx_l:
+                        i = idx_l[0]
+                        df_stand.at[i, 'GP'] += 1
+                        df_stand.at[i, 'SW'] += v[w_k]
+                        df_stand.at[i, 'SL'] += v[l_k]
+                        df_stand.at[i, 'Pts'] += v[p_k]
         
-        for color in sorted(list(set(clrs.values()))):
-            st.subheader(f"{color} Bracket")
-            sdf = df_stand[df_stand["B"]==color].sort_values(["SW", "Pts"], ascending=False).reset_index(drop=True)
+        for col in sorted(list(set(clrs.values()))):
+            st.subheader(f"{col} Bracket")
+            sdf = df_stand[df_stand["B"]==col].sort_values(["SW", "Pts"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1")
     with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2")
-    with tabs[3]: st.info("Finals Bracket Management")
+    with tabs[3]: st.info("Finals Bracket - Manually Managed")
     with tabs[4]: 
         if st.text_input("Admin", type="password") == ADMIN_PW:
             if st.button("Reload Data"):
