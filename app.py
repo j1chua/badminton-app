@@ -32,7 +32,7 @@ st.markdown("""
 <div class="trademark">POWERED BY J1</div>
 """, unsafe_allow_html=True)
 
-# 3. Data Persistence & Loading
+# 3. Persistence & Data Loading
 def save_finals(data):
     with open(SAVE_FN, "w") as f:
         json.dump(data, f)
@@ -44,6 +44,12 @@ def load_finals():
                 return json.load(f)
         except: return {}
     return {}
+
+def get_rank_str(i):
+    if i == 1: return "🥇 <b>1st</b>"
+    if i == 2: return "🥈 <b>2nd</b>"
+    if i == 3: return "🥉 <b>3rd</b>"
+    return f"{i}th"
 
 @st.cache_data
 def load_data(mtime):
@@ -63,7 +69,10 @@ def load_data(mtime):
                 try:
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     bracket_raw = str(row[c[1]]).strip().upper()
-                    if not bracket_raw or t1 == "" or t2 == "": continue
+                    
+                    # CLEANING: Skip headers or empty rows
+                    if not bracket_raw or "BRACKET" in bracket_raw or "COLOR" in bracket_raw: continue
+                    if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
                     
                     base_color = "WHITE"
                     for color_key in EMOJIS.keys():
@@ -71,7 +80,6 @@ def load_data(mtime):
                             base_color = color_key
                             break
                     
-                    # Court Detection
                     court_val = "Court ?"
                     for r_scan in range(idx, -1, -1):
                         scan_text = str(df.iloc[r_scan, c[2]]).upper()
@@ -89,7 +97,6 @@ def load_data(mtime):
                     if "|" in t1: team_colors[t1] = base_color
                     if "|" in t2: team_colors[t2] = base_color
                     
-                    # Scores
                     scores = []
                     for col_idx in [c[4], c[5], c[6], c[7]]:
                         try: scores.append(int(float(str(row[col_idx]).strip())))
@@ -110,7 +117,7 @@ def load_data(mtime):
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 4. App UI
+# 4. App Execution
 st.title("🏸 GCCP SMASH S1 2026")
 mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(mtime)
@@ -122,7 +129,11 @@ if sch is not None:
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
     with tabs[0]: # STANDINGS
-        df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
+        stand_data = []
+        for t, c in clrs.items():
+            stand_data.append({"Team": t, "B": c, "Games Played": 0, "Sets Won": 0, "Sets Lost": 0, "Points": 0})
+        df_stand = pd.DataFrame(stand_data)
+
         for v in csv_db.values():
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
                 if v.get(tk) in clrs:
@@ -135,16 +146,15 @@ if sch is not None:
         for col in sorted(list(set(clrs.values()))):
             st.subheader(f"{EMOJIS.get(col, '')} {col} Bracket")
             sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
-            st.write(sdf.drop(columns=["B"]).to_html(index=False, classes="m-table"), unsafe_allow_html=True)
+            sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
+            st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
     def render_matches(df_slice, key):
-        search = st.text_input(f"🔍 Search Team or Bracket", key=key).lower()
+        search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
         for _, r in df_slice.iterrows():
             if search in r['T1'].lower() or search in r['T2'].lower() or search in r['Bracket'].lower():
                 d = csv_db.get(r["ID"])
-                
-                # Winner Emphasis Logic
                 p1_disp, p2_disp = r['P1'], r['P2']
                 if d and d['started']:
                     if d['w1'] > d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
@@ -152,9 +162,7 @@ if sch is not None:
                     s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
                 else:
                     s1 = s2 = '<span class="status-pending">🕒 MATCH IN PROGRESS</span>'
-                
                 rows.append(f"<tr><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
-        
         if rows:
             st.write(f"<table class='m-table'><thead><tr><th>Court</th><th>Time</th><th>Bracket</th><th>Match</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(rows)}</tbody></table>", unsafe_allow_html=True)
 
@@ -175,11 +183,11 @@ if sch is not None:
         if st.text_input("Admin Password", type="password") == ADMIN_PW:
             with st.expander("Update Finals Scoreboard"):
                 target_b = st.selectbox("Bracket", ["RED", "BLACK", "GREEN", "PURPLE", "YELLOW", "WHITE"])
-                st.session_state.finals[f"{target_b}_t1"] = st.text_input("Team 1 Name", st.session_state.finals.get(f"{target_b}_t1", ""))
-                st.session_state.finals[f"{target_b}_t2"] = st.text_input("Team 2 Name", st.session_state.finals.get(f"{target_b}_t2", ""))
+                st.session_state.finals[f"{target_b}_t1"] = st.text_input("Team 1", st.session_state.finals.get(f"{target_b}_t1", ""))
+                st.session_state.finals[f"{target_b}_t2"] = st.text_input("Team 2", st.session_state.finals.get(f"{target_b}_t2", ""))
                 st.session_state.finals[f"{target_b}_s1"] = st.text_input("Score 1", st.session_state.finals.get(f"{target_b}_s1", "0"))
                 st.session_state.finals[f"{target_b}_s2"] = st.text_input("Score 2", st.session_state.finals.get(f"{target_b}_s2", "0"))
                 if st.button("Save Finals"):
                     save_finals(st.session_state.finals); st.rerun()
-            if st.button("Force Reload CSV"):
+            if st.button("Reload CSV"):
                 st.cache_data.clear(); st.rerun()
