@@ -25,6 +25,9 @@ st.markdown("""
     .m-table th { background-color: #f8f9fa; text-align: center !important; padding: 14px; border: 1px solid #dee2e6; font-weight: 800; color: #333; }
     .m-table td { text-align: center !important; padding: 12px; border: 1px solid #dee2e6; vertical-align: middle; }
     
+    /* High-Stakes Highlight for Semis/Finals */
+    .high-stakes { background-color: #fffde7 !important; border: 2px solid #fbc02d !important; }
+    
     .winner-text { font-weight: 800; color: #2e7d32; }
     .status-pending { color: #adb5bd; font-style: italic; font-size: 0.85em; }
     .trademark { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #bbb; letter-spacing: 3px; z-index: 1000; text-align: center; width: 100%; font-weight: 300; }
@@ -70,9 +73,10 @@ def load_data(mtime):
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     bracket_raw = str(row[c[1]]).strip().upper()
                     
-                    # CLEANING: Skip headers or empty rows
                     if not bracket_raw or "BRACKET" in bracket_raw or "COLOR" in bracket_raw: continue
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
+                    
+                    is_high_stakes = "SEMIS" in bracket_raw or "FINALS" in bracket_raw
                     
                     base_color = "WHITE"
                     for color_key in EMOJIS.keys():
@@ -84,14 +88,14 @@ def load_data(mtime):
                     for r_scan in range(idx, -1, -1):
                         scan_text = str(df.iloc[r_scan, c[2]]).upper()
                         if "COURT" in scan_text:
-                            court_val = scan_text.strip()
-                            break
+                            court_val = scan_text.strip(); break
                     
                     m_id = f"{day_context[0]}{idx}{c[0]}"
                     matches.append({
                         "ID": m_id, "Day": day_context, "T": str(row[c[0]]).strip(), 
                         "T1": t1, "T2": t2, "P1": t1.replace("|", " AND "), "P2": t2.replace("|", " AND "),
-                        "Bracket": bracket_raw, "Emoji": EMOJIS.get(base_color, "🏸"), "Court": court_val
+                        "Bracket": bracket_raw, "Emoji": EMOJIS.get(base_color, "🏸"), 
+                        "Court": court_val, "HighStakes": is_high_stakes
                     })
                     
                     if "|" in t1: team_colors[t1] = base_color
@@ -102,22 +106,20 @@ def load_data(mtime):
                         try: scores.append(int(float(str(row[col_idx]).strip())))
                         except: scores.append(0)
                     
-                    w1 = (scores[0] > scores[2]) + (scores[1] > scores[3])
-                    w2 = (scores[2] > scores[0]) + (scores[3] > scores[1])
-                    
                     db[m_id] = {
                         "s1": scores[0], "s2": scores[1], "s3": scores[2], "s4": scores[3],
-                        "w1": w1, "w2": w2,
-                        "l1": (scores[0] < scores[2]) + (scores[1] < scores[3]),
-                        "l2": (scores[2] < scores[0]) + (scores[3] < scores[1]),
-                        "p1": scores[0] + scores[1], "p2": scores[2] + scores[3],
+                        "w1": (scores[0]>scores[2])+(scores[1]>scores[3]),
+                        "w2": (scores[2]>scores[0])+(scores[3]>scores[1]),
+                        "l1": (scores[0]<scores[2])+(scores[1]<scores[3]),
+                        "l2": (scores[2]<scores[0])+(scores[3]<scores[1]),
+                        "p1": scores[0]+scores[1], "p2": scores[2]+scores[3],
                         "started": any(s > 0 for s in scores), "t1": t1, "t2": t2
                     }
                 except: continue
         return pd.DataFrame(matches), team_colors, db
     except: return None, {}, {}
 
-# 4. App Execution
+# 4. App UI
 st.title("🏸 GCCP SMASH S1 2026")
 mtime = os.path.getmtime(FN) if os.path.exists(FN) else 0
 sch, clrs, csv_db = load_data(mtime)
@@ -133,15 +135,12 @@ if sch is not None:
         for t, c in clrs.items():
             stand_data.append({"Team": t, "B": c, "Games Played": 0, "Sets Won": 0, "Sets Lost": 0, "Points": 0})
         df_stand = pd.DataFrame(stand_data)
-
         for v in csv_db.values():
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
                 if v.get(tk) in clrs:
                     idx = df_stand.index[df_stand['Team']==v[tk]][0]
-                    df_stand.at[idx,'Games Played']+=1
-                    df_stand.at[idx,'Sets Won']+=v[wk]
-                    df_stand.at[idx,'Sets Lost']+=v[lk]
-                    df_stand.at[idx,'Points']+=v[pk]
+                    df_stand.at[idx,'Games Played']+=1; df_stand.at[idx,'Sets Won']+=v[wk]
+                    df_stand.at[idx,'Sets Lost']+=v[lk]; df_stand.at[idx,'Points']+=v[pk]
         
         for col in sorted(list(set(clrs.values()))):
             st.subheader(f"{EMOJIS.get(col, '')} {col} Bracket")
@@ -156,13 +155,17 @@ if sch is not None:
             if search in r['T1'].lower() or search in r['T2'].lower() or search in r['Bracket'].lower():
                 d = csv_db.get(r["ID"])
                 p1_disp, p2_disp = r['P1'], r['P2']
+                row_class = 'class="high-stakes"' if r['HighStakes'] else ""
+                
                 if d and d['started']:
                     if d['w1'] > d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
                     elif d['w2'] > d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
                     s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
                 else:
                     s1 = s2 = '<span class="status-pending">🕒 MATCH IN PROGRESS</span>'
-                rows.append(f"<tr><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
+                
+                rows.append(f"<tr {row_class}><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
+        
         if rows:
             st.write(f"<table class='m-table'><thead><tr><th>Court</th><th>Time</th><th>Bracket</th><th>Match</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(rows)}</tbody></table>", unsafe_allow_html=True)
 
@@ -187,7 +190,5 @@ if sch is not None:
                 st.session_state.finals[f"{target_b}_t2"] = st.text_input("Team 2", st.session_state.finals.get(f"{target_b}_t2", ""))
                 st.session_state.finals[f"{target_b}_s1"] = st.text_input("Score 1", st.session_state.finals.get(f"{target_b}_s1", "0"))
                 st.session_state.finals[f"{target_b}_s2"] = st.text_input("Score 2", st.session_state.finals.get(f"{target_b}_s2", "0"))
-                if st.button("Save Finals"):
-                    save_finals(st.session_state.finals); st.rerun()
-            if st.button("Reload CSV"):
-                st.cache_data.clear(); st.rerun()
+                if st.button("Save Finals"): save_finals(st.session_state.finals); st.rerun()
+            if st.button("Reload CSV"): st.cache_data.clear(); st.rerun()
