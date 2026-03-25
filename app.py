@@ -41,18 +41,54 @@ def get_rank_str(i):
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;600;800&display=swap');
+    
+    /* Global Font & Consistency */
     html, body, [class*="css"], .stMarkdown, p, div, table, h1, h2, h3 {
         font-family: 'Be Vietnam Pro', sans-serif !important;
     }
-    .m-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; border-radius: 8px; overflow: hidden; }
-    .m-table th { background-color: #f8f9fa; text-align: center !important; padding: 14px; border: 1px solid #dee2e6; font-weight: 800; color: #333; }
-    .m-table td { text-align: center !important; padding: 12px; border: 1px solid #dee2e6; vertical-align: middle; }
+
+    /* Force consistent width for all tabs */
+    .block-container {
+        max-width: 1000px;
+        padding-top: 2rem;
+        padding-bottom: 5rem;
+        margin: auto;
+    }
+
+    /* Modern Table: No vertical lines */
+    .m-table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin-bottom: 30px; 
+    }
+    .m-table th { 
+        background-color: #ffffff; 
+        text-align: center !important; 
+        padding: 16px; 
+        border-bottom: 2px solid #333; /* Thick header separator */
+        font-weight: 800; 
+        color: #111;
+        text-transform: uppercase;
+        font-size: 0.9em;
+        letter-spacing: 1px;
+    }
+    .m-table td { 
+        text-align: center !important; 
+        padding: 14px; 
+        border-bottom: 1px solid #eee; /* Light horizontal only */
+        vertical-align: middle; 
+    }
+    
+    /* Row effects */
+    .m-table tr:hover { background-color: #fafafa; }
+    
     .bracket-header { color: #fff; padding: 12px; border-radius: 4px; text-align: center; margin: 15px 0; font-weight: bold; font-size: 1.2em;}
     .score-badge { background: #f0f2f6; padding: 4px 10px; border-radius: 5px; font-weight: bold; margin-right: 5px; border: 1px solid #ccc; }
     .winner-banner { background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 4px; font-weight: bold; border: 1px solid #2e7d32; display: inline-block; font-size: 0.85em; }
-    .high-stakes { background-color: #fffde7 !important; border: 2px solid #fbc02d !important; }
+    .high-stakes { background-color: #fffde7 !important; }
     .winner-text { font-weight: 800; color: #2e7d32; }
     .status-pending { color: #adb5bd; font-style: italic; font-size: 0.85em; }
+    
     .trademark { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #bbb; letter-spacing: 3px; z-index: 1000; text-align: center; width: 100%; font-weight: 300; }
 </style>
 <div class="trademark">POWERED BY J1</div>
@@ -119,7 +155,7 @@ if sch is not None:
     tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
 
     with tabs[0]: # STANDINGS
-        df_stand = pd.DataFrame([{"Team":t, "B":c, "Games Played":0, "Sets Won":0, "Sets Lost":0, "Points":0} for t,c in clrs.items()])
+        df_stand = pd.DataFrame([{"Team":t, "B":c, "GP":0, "SW":0, "SL":0, "Pts":0} for t,c in clrs.items()])
         for v in csv_db.values():
             if not v.get('started'): continue 
             for tk, wk, lk, pk in [('t1','w1','l1','p1'),('t2','w2','l2','p2')]:
@@ -127,11 +163,11 @@ if sch is not None:
                     i_list = df_stand.index[df_stand['Team']==v[tk]].tolist()
                     if i_list:
                         i = i_list[0]
-                        df_stand.at[i,'Games Played']+=1; df_stand.at[i,'Sets Won']+=v[wk]
-                        df_stand.at[i,'Sets Lost']+=v[lk]; df_stand.at[i,'Points']+=v[pk]
+                        df_stand.at[i,'GP']+=1; df_stand.at[i,'SW']+=v[wk]
+                        df_stand.at[i,'SL']+=v[lk]; df_stand.at[i,'Pts']+=v[pk]
         for col in all_brackets:
             st.subheader(f"{EMOJIS.get(col,'')} {col} Bracket")
-            sdf = df_stand[df_stand["B"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
+            sdf = df_stand[df_stand["B"]==col].sort_values(["SW","Pts"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["B"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
 
@@ -148,7 +184,6 @@ if sch is not None:
                     elif d['w2']>d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
                     s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
                 else: 
-                    # Use specific status for Day 2
                     status_text = "🕒 UPCOMING MATCH" if day_label == "Day 2" else "🕒 MATCH IN PROGRESS"
                     s1 = s2 = f'<span class="status-pending">{status_text}</span>'
                 rows.append(f"<tr {row_cls}><td>{r['Court']}</td><td>{r['T']}</td><td>{r['Emoji']} {r['Bracket']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
