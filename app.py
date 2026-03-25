@@ -16,6 +16,8 @@ COLOR_MAP = {
     "BLACK": "#000000", "RED": "#d32f2f", "GREEN": "#2e7d32", 
     "PURPLE": "#7b1fa2", "WHITE": "#9e9e9e", "YELLOW": "#fbc02d"
 }
+# Filter out these placeholders from Standings and Match lists
+IGNORE_TEAMS = ["TBD", "1ST", "2ND", "3RD", "4TH", "5TH", "TBA"]
 
 # 2. Persistence Logic
 def save_finals(data):
@@ -74,8 +76,11 @@ def load_data(mtime):
                 try:
                     t1, t2 = str(row[c[2]]).strip(), str(row[c[3]]).strip()
                     bracket_raw = str(row[c[1]]).strip().upper()
+                    
+                    # VALIDATION: Skip if header, empty, results text, or a placeholder like TBD/1st
                     if not bracket_raw or "BRACKET" in bracket_raw or "COLOR" in bracket_raw: continue
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
+                    if any(p in t1.upper() for p in IGNORE_TEAMS) or any(p in t2.upper() for p in IGNORE_TEAMS): continue
                     
                     is_high_stakes = "SEMIS" in bracket_raw or "FINALS" in bracket_raw
                     base_color = "WHITE"
@@ -176,8 +181,6 @@ if sch is not None:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
-            
-            # Timestamp shown under the button
             if mtime > 0:
                 st.caption(f"📅 Data Last Updated: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}")
             
