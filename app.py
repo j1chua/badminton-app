@@ -211,4 +211,17 @@ if sch is not None:
                 w2_temp = (1 if s1b > s1a else 0) + (1 if s2b > s2a else 0)
                 is_tie = (w1_temp == 1 and w2_temp == 1)
                 with c4:
-                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}",
+                    use_s3 = st.toggle("Set 3?", value=d.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
+                    s3a = st.number_input("S3 T1", 0, 31, int(d['s3a']), key=f"s3a_{match_id}_{v}", disabled=not use_s3)
+                    s3b = st.number_input("S3 T2", 0, 31, int(d['s3b']), key=f"s3b_{match_id}_{v}", disabled=not use_s3)
+                if st.button(f"Save {label}", key=f"save_{match_id}_{v}"):
+                    sw1 = w1_temp + (1 if use_s3 and s3a > s3b else 0)
+                    sw2 = w2_temp + (1 if use_s3 and s3b > s3a else 0)
+                    st.session_state.finals[match_id] = {
+                        "t1":t1, "t2":t2, "s1a":s1a, "s1b":s1b, "s2a":s2a, "s2b":s2b, 
+                        "s3a":s3a if use_s3 else 0, "s3b":s3b if use_s3 else 0, 
+                        "sw1":sw1, "sw2":sw2, "use_s3":use_s3
+                    }
+                    save_finals(st.session_state.finals); st.success("Saved!"); st.rerun()
+                st.divider()
+            a_m("SEMI-FINAL 1", "sf1"); a_m("SEMI-FINAL 2", "sf2"); a_m("🏆 CHAMPIONSHIP", "fin")
