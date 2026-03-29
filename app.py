@@ -170,31 +170,30 @@ if sch is not None:
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
             
-            # --- BLACK BRACKET PLAYOFFS SECTION ---
-            if col == "BLACK":
-                st.write("#### 🏆 BLACK BRACKET PLAYOFF MATCHES")
-                black_playoffs = sch[(sch["L"] == "BLACK") & (sch["HighStakes"] == True)]
-                
-                if not black_playoffs.empty:
-                    p_rows = []
-                    for _, r in black_playoffs.iterrows():
-                        d = csv_db.get(r["ID"])
-                        p1_disp, p2_disp = r['P1'], r['P2']
-                        
-                        if d and d['started']:
-                            # HIGHLIGHT WINNER LOGIC
-                            if d['w1'] > d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
-                            elif d['w2'] > d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
-                            s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
-                        else:
-                            s1 = s2 = '<span class="status-pending">TBD</span>'
-                        
-                        p_rows.append(f"<tr><td><b>{r['Bracket']}</b></td><td>{r['T']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
+            # --- PLAYOFFS SECTION FOR EACH BRACKET ---
+            st.write(f"#### 🏆 {col} BRACKET PLAYOFF MATCHES")
+            playoff_matches = sch[(sch["L"] == col) & (sch["HighStakes"] == True)]
+            
+            if not playoff_matches.empty:
+                p_rows = []
+                for _, r in playoff_matches.iterrows():
+                    d = csv_db.get(r["ID"])
+                    p1_disp, p2_disp = r['P1'], r['P2']
                     
-                    st.write(f"<table class='m-table'><thead><tr><th>Round</th><th>Time</th><th>Matchup</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(p_rows)}</tbody></table>", unsafe_allow_html=True)
-                else:
-                    st.info("No Semis or Finals matches found for Black Bracket yet.")
-            # --------------------------------------
+                    if d and d['started']:
+                        # Winner Highlighting
+                        if d['w1'] > d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
+                        elif d['w2'] > d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
+                        s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
+                    else:
+                        s1 = s2 = '<span class="status-pending">TBD</span>'
+                    
+                    p_rows.append(f"<tr><td><b>{r['Bracket']}</b></td><td>{r['T']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
+                
+                st.write(f"<table class='m-table'><thead><tr><th>Round</th><th>Time</th><th>Matchup</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(p_rows)}</tbody></table>", unsafe_allow_html=True)
+            else:
+                st.info(f"No playoff matches found for {col} bracket yet.")
+            # -----------------------------------------
         
         if mtime > 0:
             st.markdown(f'<div class="sync-text">Scores last synced: {datetime.fromtimestamp(mtime).strftime("%I:%M %p, %b %d")}</div>', unsafe_allow_html=True)
@@ -223,7 +222,7 @@ if sch is not None:
     with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1", "Day 1")
     with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2", "Day 2")
 
-    with tabs[3]: # FINALS VIEW
+    with tabs[3]: # FINALS VIEW (Manual overrides)
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
         st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
@@ -246,17 +245,9 @@ if sch is not None:
 
     with tabs[4]: # ADMIN
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
-            
-            # --- ALIGNED EXPORT SECTION ---
             st.subheader("📥 Data Export")
-            st.write("Download the current standings to use as a template or backup.")
             csv_data = df_stand.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download CSV Template", 
-                data=csv_data, 
-                file_name=f"smash_template_{datetime.now().strftime('%Y%m%d')}.csv", 
-                mime='text/csv'
-            )
+            st.download_button(label="Download CSV Template", data=csv_data, file_name=f"smash_template.csv", mime='text/csv')
             st.divider()
 
             if st.button("🔄 Force Refresh Data"):
