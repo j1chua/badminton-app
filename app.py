@@ -84,7 +84,7 @@ st.markdown("""
     .high-stakes { background-color: #fffde7 !important; }
     .winner-text { font-weight: 800; color: #2e7d32; }
     .status-pending { color: #adb5bd; font-style: italic; font-size: 0.85em; }
-    .sync-text { font-size: 0.8 em; color: #888; text-align: center; margin-top: 20px; font-style: italic; }
+    .sync-text { font-size: 0.8em; color: #888; text-align: center; margin-top: 20px; font-style: italic; }
     
     .trademark { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #bbb; letter-spacing: 3px; z-index: 1000; text-align: center; width: 100%; font-weight: 300; }
 </style>
@@ -169,6 +169,28 @@ if sch is not None:
             sdf = df_stand[df_stand["Bracket"]==col].sort_values(["Sets Won","Points"], ascending=False).reset_index(drop=True)
             sdf.insert(0, "Rank", [get_rank_str(i+1) for i in range(len(sdf))])
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
+            
+            # --- BLACK BRACKET PLAYOFFS SECTION ---
+            if col == "BLACK":
+                st.write("#### 🏆 BLACK BRACKET PLAYOFF MATCHES")
+                black_playoffs = sch[(sch["L"] == "BLACK") & (sch["HighStakes"] == True)]
+                
+                if not black_playoffs.empty:
+                    p_rows = []
+                    for _, r in black_playoffs.iterrows():
+                        d = csv_db.get(r["ID"])
+                        p1_disp, p2_disp = r['P1'], r['P2']
+                        if d and d['started']:
+                            s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
+                        else:
+                            s1 = s2 = '<span class="status-pending">TBD</span>'
+                        
+                        p_rows.append(f"<tr><td><b>{r['Bracket']}</b></td><td>{r['T']}</td><td>{p1_disp} <b>vs</b> {p2_disp}</td><td>{s1}</td><td>{s2}</td></tr>")
+                    
+                    st.write(f"<table class='m-table'><thead><tr><th>Round</th><th>Time</th><th>Matchup</th><th>Set 1</th><th>Set 2</th></tr></thead><tbody>{''.join(p_rows)}</tbody></table>", unsafe_allow_html=True)
+                else:
+                    st.info("No Semis or Finals matches found for Black Bracket yet.")
+            # --------------------------------------
         
         if mtime > 0:
             st.markdown(f'<div class="sync-text">Scores last synced: {datetime.fromtimestamp(mtime).strftime("%I:%M %p, %b %d")}</div>', unsafe_allow_html=True)
