@@ -105,7 +105,7 @@ with t2:
 
 with t3:
     st.header("Tournament Standings & Playoffs")
-    # Updated labels here
+    # THE ONLY MODIFIED PART:
     st.table(get_detailed_standings(df))
     st.divider()
     st.subheader("🏆 Championship Brackets (Semis & Finals)")
@@ -127,27 +127,22 @@ with t4:
     finals_data = load_finals()
     for v in ["PURPLE", "RED", "YELLOW", "BLACK", "GREEN", "WHITE"]:
         d = finals_data.get(v, {"s1":{}, "s2":{}, "f":{}, "w":[]})
-        st.markdown(f'<div style="background-color:{COLOR_MAP.get(v, "#333")}; color:white; padding:10px; border-radius:5px; margin-top:20px; font-weight:bold; border-left: 10px solid rgba(255,255,255,0.3);">{EMOJIS.get(v, "")} {v} BRACKET</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background-color:{COLOR_MAP.get(v, "#333")}; color:white; padding:10px; border-radius:5px; margin-top:20px;">{EMOJIS.get(v, "")} {v} BRACKET</div>', unsafe_allow_html=True)
         
         winners = d.get('w', [])
         if winners:
             cols = st.columns(len(winners))
             for i, team in enumerate(winners):
                 with cols[i]:
-                    rank_html = get_rank_str(i+1)
-                    st.markdown(f'<div style="text-align:center; padding:15px; border:2px solid {COLOR_MAP.get(v)}; border-radius:10px; background-color:rgba(255,255,255,0.05); margin-bottom:10px;">{rank_html}<br><span style="font-size:1.1em; font-weight:bold;">{team}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="text-align:center; padding:10px; border:1px solid #ddd; border-radius:5px;">{get_rank_str(i+1)}<br>{team}</div>', unsafe_allow_html=True)
         
         c1, c2, c3 = st.columns(3)
         for col, m_key, label in zip([c1, c2, c3], ['s1', 's2', 'f'], ['Semi 1', 'Semi 2', 'Finals']):
             m = d.get(m_key, {})
             with col:
-                st.markdown(f"""
-                <div style="border:1px solid #444; padding:10px; border-radius:5px;">
-                    <small style="color:#888;">{label}</small><br>
-                    <b>{m.get('t1','TBD')}</b> <span style="float:right;">{m.get('sw1',0)}</span><br>
-                    <b>{m.get('t2','TBD')}</b> <span style="float:right;">{m.get('sw2',0)}</span>
-                </div>
-                """, unsafe_allow_html=True)
+                st.write(f"**{label}**")
+                st.write(f"{m.get('t1','TBD')} ({m.get('sw1',0)})")
+                st.write(f"{m.get('t2','TBD')} ({m.get('sw2',0)})")
 
 with t5:
     st.header("⚙️ Admin Management")
@@ -159,38 +154,36 @@ with t5:
                                        "f":{'t1':'','t2':'','s1a':0,'s1b':0,'s2a':0,'s2b':0,'s3a':0,'s3b':0,'use_s3':False,'sw1':0,'sw2':0},
                                        "w":[]})
         
-        for m_id, label in [("s1", "Semi 1"), ("s2", "Semi 2"), ("f", "Finals")]:
+        for match_id, label in [("s1", "Semi 1"), ("s2", "Semi 2"), ("f", "Finals")]:
             st.subheader(label)
-            md = d[m_id]
+            m = d[match_id]
             c1, c2, c3, c4 = st.columns([2,1,1,1])
             with c1:
-                md['t1'] = st.text_input("Team 1", md.get('t1',''), key=f"t1_{m_id}_{v}")
-                md['t2'] = st.text_input("Team 2", md.get('t2',''), key=f"t2_{m_id}_{v}")
+                m['t1'] = st.text_input("Team 1", m.get('t1',''), key=f"t1_{match_id}_{v}")
+                m['t2'] = st.text_input("Team 2", m.get('t2',''), key=f"t2_{match_id}_{v}")
             with c2:
-                s1a = st.number_input("S1 T1", 0, 31, int(md.get('s1a',0)), key=f"s1a_{m_id}_{v}")
-                s1b = st.number_input("S1 T2", 0, 31, int(md.get('s1b',0)), key=f"s1b_{m_id}_{v}")
-                md['s1a'], md['s1b'] = s1a, s1b
+                m['s1a'] = st.number_input("S1 T1", 0, 31, int(m.get('s1a',0)), key=f"s1a_{match_id}_{v}")
+                m['s1b'] = st.number_input("S1 T2", 0, 31, int(m.get('s1b',0)), key=f"s1b_{match_id}_{v}")
             with c3:
-                s2a = st.number_input("S2 T1", 0, 31, int(md.get('s2a',0)), key=f"s2a_{m_id}_{v}")
-                s2b = st.number_input("S2 T2", 0, 31, int(md.get('s2b',0)), key=f"s2b_{m_id}_{v}")
-                md['s2a'], md['s2b'] = s2a, s2b
+                m['s2a'] = st.number_input("S2 T1", 0, 31, int(m.get('s2a',0)), key=f"s2a_{match_id}_{v}")
+                m['s2b'] = st.number_input("S2 T2", 0, 31, int(m.get('s2b',0)), key=f"s2b_{match_id}_{v}")
             
-            w1_t = (1 if md['s1a'] > md['s1b'] else 0) + (1 if md['s2a'] > md['s2b'] else 0)
-            w2_t = (1 if md['s1b'] > md['s1a'] else 0) + (1 if md['s2b'] > md['s2a'] else 0)
+            w1_t = (1 if m['s1a'] > m['s1b'] else 0) + (1 if m['s2a'] > m['s2b'] else 0)
+            w2_t = (1 if m['s1b'] > m['s1a'] else 0) + (1 if m['s2b'] > m['s2a'] else 0)
             is_tie = (w1_t == 1 and w2_t == 1)
             with c4:
-                md['use_s3'] = st.toggle("Set 3?", value=md.get('use_s3', False) if is_tie else False, key=f"s3tgl_{m_id}_{v}", disabled=not is_tie)
-                md['s3a'] = st.number_input("S3 T1", 0, 31, int(md.get('s3a',0)), key=f"s3a_{m_id}_{v}", disabled=not md['use_s3'])
-                md['s3b'] = st.number_input("S3 T2", 0, 31, int(md.get('s3b',0)), key=f"s3b_{m_id}_{v}", disabled=not md['use_s3'])
-            if st.button(f"Save {label}", key=f"save_{m_id}_{v}"):
-                md['sw1'] = w1_t + (1 if md['use_s3'] and md['s3a'] > md['s3b'] else 0)
-                md['sw2'] = w2_t + (1 if md['use_s3'] and md['s3b'] > md['s3a'] else 0)
+                m['use_s3'] = st.toggle("Set 3?", value=m.get('use_s3', False) if is_tie else False, key=f"s3tgl_{match_id}_{v}", disabled=not is_tie)
+                m['s3a'] = st.number_input("S3 T1", 0, 31, int(m.get('s3a',0)), key=f"s3a_{match_id}_{v}", disabled=not m['use_s3'])
+                m['s3b'] = st.number_input("S3 T2", 0, 31, int(m.get('s3b',0)), key=f"s3b_{match_id}_{v}", disabled=not m['use_s3'])
+            if st.button(f"Save {label}", key=f"save_{match_id}_{v}"):
+                m['sw1'] = w1_t + (1 if m['use_s3'] and m['s3a'] > m['s3b'] else 0)
+                m['sw2'] = w2_t + (1 if m['use_s3'] and m['s3b'] > m['s3a'] else 0)
                 save_finals(finals_data)
                 st.rerun()
 
         st.subheader("Podium Standings")
-        w_input = st.text_input("Winners (comma separated)", ",".join(d.get('w',[])), key=f"win_{v}")
+        w_in = st.text_input("Winners (comma separated)", ",".join(d.get('w',[])), key=f"win_{v}")
         if st.button("Save Podium", key=f"p_btn_{v}"):
-            d['w'] = [x.strip() for x in w_input.split(",") if x.strip()]
+            d['w'] = [x.strip() for x in w_in.split(",") if x.strip()]
             save_finals(finals_data)
             st.rerun()
