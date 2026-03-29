@@ -99,9 +99,7 @@ def load_data(mtime):
         df = pd.read_csv(FN, header=None).fillna("")
         matches, team_colors, db = [], {}, {}
         day = "Day 1"
-        # Column Map for Sets:
-        # Block 1: Time(0), Bracket(1), T1(2), T2(7), S1_T1(3), S1_T2(8), S2_T1(4), S2_T2(9), S3_T1(5), S3_T2(10)
-        # Block 2: Time(13), Bracket(14), T1(15), T2(20), S1_T1(16), S1_T2(21), S2_T1(17), S2_T2(22), S3_T1(18), S3_T2(23)
+        # Blocks update: Capture Set 3 columns
         blocks = [[0,1,2,7, 3,8, 4,9, 5,10], [13,14,15,20, 16,21, 17,22, 18,23]]
         
         for idx, row in df.iterrows():
@@ -116,6 +114,9 @@ def load_data(mtime):
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
                     
                     is_high_stakes = "SEMIS" in bracket_raw or "FINALS" in bracket_raw
+                    # Order Priority: Semis (1), Finals (2), Others (3)
+                    prio = 1 if "SEMIS" in bracket_raw else (2 if "FINALS" in bracket_raw else 3)
+                    
                     base_color = "WHITE"
                     for k in EMOJIS:
                         if k in bracket_raw: base_color = k; break
@@ -129,14 +130,13 @@ def load_data(mtime):
                     matches.append({"ID":m_id, "Day":day, "T":str(row[c[0]]).strip(), "T1":t1, "T2":t2, 
                                    "P1":t1.replace("|"," AND "), "P2":t2.replace("|"," AND "),
                                    "Bracket":bracket_raw, "Emoji":EMOJIS.get(base_color,"🏸"), 
-                                   "Court":court, "HighStakes":is_high_stakes, "L": base_color})
+                                   "Court":court, "HighStakes":is_high_stakes, "L": base_color, "Prio": prio})
                     
                     if not any(p in t1.upper() for p in IGNORE_TEAMS): team_colors[t1] = base_color
                     if not any(p in t2.upper() for p in IGNORE_TEAMS): team_colors[t2] = base_color
                     
                     sc = [int(float(str(row[col]).strip())) if str(row[col]).strip().replace('.','',1).isdigit() else 0 for col in [c[4], c[5], c[6], c[7], c[8], c[9]]]
                     
-                    # Wins calculation: S1(0vs1), S2(2vs3), S3(4vs5)
                     w1 = (sc[0]>sc[1]) + (sc[2]>sc[3]) + (sc[4]>sc[5] if (sc[4]>0 or sc[5]>0) else 0)
                     w2 = (sc[1]>sc[0]) + (sc[3]>sc[2]) + (sc[5]>sc[4] if (sc[4]>0 or sc[5]>0) else 0)
                     
@@ -181,7 +181,8 @@ if sch is not None:
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
             
             st.write(f"#### 🏆 {col} BRACKET PLAYOFF MATCHES")
-            playoff_matches = sch[(sch["L"] == col) & (sch["HighStakes"] == True)]
+            # Sort by Prio (Semis first) then Time
+            playoff_matches = sch[(sch["L"] == col) & (sch["HighStakes"] == True)].sort_values(["Prio", "T"])
             
             if not playoff_matches.empty:
                 p_rows = []
@@ -209,7 +210,8 @@ if sch is not None:
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
         search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
-        for _, r in df_slice.iterrows():
+        # Normal Day tabs sorted by Court/Time
+        for _, r in df_slice.sort_values(["Court", "T"]).iterrows():
             if search in r['T1'].lower() or search in r['T2'].lower() or search in r['Bracket'].lower():
                 d = csv_db.get(r["ID"])
                 p1_disp, p2_disp = r['P1'], r['P2']
@@ -226,10 +228,10 @@ if sch is not None:
         if rows: st.write(f"<table class='m-table'><thead><tr><th>Court</th><th>Time</th><th>Bracket</th><th>Match</th><th>Set 1</th><th>Set 2</th><th>Set 3</th></tr></thead><tbody>{''.join(rows)}</tbody></table>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"].sort_values(["Court", "T"]), "q1", "Day 1")
-    with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"].sort_values(["Court", "T"]), "q2", "Day 2")
+    with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"], "q1", "Day 1")
+    with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"], "q2", "Day 2")
 
-    with tabs[3]: # FINALS VIEW
+    with tabs[3]: # FINALS VIEW (Manual overrides)
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
         sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
         st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
@@ -254,4 +256,4 @@ if sch is not None:
         if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
             if st.button("🔄 Force Refresh Data"):
                 st.cache_data.clear(); st.rerun()
-            # Admin logic for CSV and manual finals overrides
+            # ... Admin controls remain the same
