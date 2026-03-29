@@ -99,7 +99,6 @@ def load_data(mtime):
         df = pd.read_csv(FN, header=None).fillna("")
         matches, team_colors, db = [], {}, {}
         day = "Day 1"
-        # Blocks update: Capture Set 3 columns
         blocks = [[0,1,2,7, 3,8, 4,9, 5,10], [13,14,15,20, 16,21, 17,22, 18,23]]
         
         for idx, row in df.iterrows():
@@ -114,7 +113,6 @@ def load_data(mtime):
                     if t1 == "" or t2 == "" or "RESULTS" in t1 or "RESULTS" in t2: continue
                     
                     is_high_stakes = "SEMIS" in bracket_raw or "FINALS" in bracket_raw
-                    # Order Priority: Semis (1), Finals (2), Others (3)
                     prio = 1 if "SEMIS" in bracket_raw else (2 if "FINALS" in bracket_raw else 3)
                     
                     base_color = "WHITE"
@@ -159,7 +157,9 @@ sch, clrs, csv_db = load_data(mtime)
 if sch is not None:
     if 'finals' not in st.session_state: st.session_state.finals = load_finals()
     all_brackets = sorted(list(set(clrs.values())))
-    tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2", "🏆 Finals", "⚙️ Admin"])
+    
+    # Hiding Finals and Admin for now by removing them from tabs list
+    tabs = st.tabs(["📊 Standings", "📅 Day 1", "📅 Day 2"])
 
     with tabs[0]: # STANDINGS
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
@@ -181,7 +181,6 @@ if sch is not None:
             st.write(sdf.drop(columns=["Bracket"]).to_html(escape=False, index=False, classes="m-table"), unsafe_allow_html=True)
             
             st.write(f"#### 🏆 {col} BRACKET PLAYOFF MATCHES")
-            # Sort by Prio (Semis first) then Time
             playoff_matches = sch[(sch["L"] == col) & (sch["HighStakes"] == True)].sort_values(["Prio", "T"])
             
             if not playoff_matches.empty:
@@ -210,7 +209,6 @@ if sch is not None:
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
         search = st.text_input(f"🔍 Search Matches", key=key).lower()
         rows = []
-        # Normal Day tabs sorted by Court/Time
         for _, r in df_slice.sort_values(["Court", "T"]).iterrows():
             if search in r['T1'].lower() or search in r['T2'].lower() or search in r['Bracket'].lower():
                 d = csv_db.get(r["ID"])
@@ -231,29 +229,27 @@ if sch is not None:
     with tabs[1]: render_matches(sch[sch["Day"] == "Day 1"], "q1", "Day 1")
     with tabs[2]: render_matches(sch[sch["Day"] == "Day 2"], "q2", "Day 2")
 
-    with tabs[3]: # FINALS VIEW (Manual overrides)
-        st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
-        st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
-        def v_m(label, suffix):
-            k = f"{sel_v}_{suffix}"
-            d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
-            st.markdown(f"#### {label}")
-            c1, c2, c3 = st.columns([3, 4, 2])
-            with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
-            with c2:
-                h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
-                if d.get('use_s3'): h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
-                st.markdown(h, unsafe_allow_html=True)
-            with c3:
-                if d['sw1'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
-                elif d['sw2'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
-            st.divider()
-        v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
-        st.markdown('</div>', unsafe_allow_html=True)
+# --- Hidden Logic (Retained for future use) ---
+def hidden_finals_tab():
+    sel_v = st.radio("Select Bracket:", all_brackets, horizontal=True, key="view_sel")
+    st.markdown(f'<div class="bracket-header" style="background-color: {COLOR_MAP.get(sel_v, "#000")}">🏆 {sel_v} BRACKET - FINALS</div>', unsafe_allow_html=True)
+    def v_m(label, suffix):
+        k = f"{sel_v}_{suffix}"
+        d = st.session_state.finals.get(k, {"t1":"TBD", "t2":"TBD", "s1a":0, "s1b":0, "s2a":0, "s2b":0, "s3a":0, "s3b":0, "sw1":0, "sw2":0, "use_s3":False})
+        st.markdown(f"#### {label}")
+        c1, c2, c3 = st.columns([3, 4, 2])
+        with c1: st.write(f"**{d['t1']}**"); st.write(f"**{d['t2']}**")
+        with c2:
+            h = f"<span class='score-badge'>{d['s1a']}-{d['s1b']}</span> <span class='score-badge'>{d['s2a']}-{d['s2b']}</span>"
+            if d.get('use_s3'): h += f" <span class='score-badge'>{d['s3a']}-{d['s3b']}</span>"
+            st.markdown(h, unsafe_allow_html=True)
+        with c3:
+            if d['sw1'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t1']}</div>", unsafe_allow_html=True)
+            elif d['sw2'] >= 2: st.markdown(f"<div class='winner-banner'>🏆 WINNER: {d['t2']}</div>", unsafe_allow_html=True)
+        st.divider()
+    v_m("Semi-Final 1 (#1 vs #4)", "sf1"); v_m("Semi-Final 2 (#2 vs #3)", "sf2"); v_m("🏆 Championship Final", "fin")
 
-    with tabs[4]: # ADMIN
-        if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
-            if st.button("🔄 Force Refresh Data"):
-                st.cache_data.clear(); st.rerun()
-            # ... Admin controls remain the same
+def hidden_admin_tab():
+    if st.text_input("Enter Admin Password", type="password") == ADMIN_PW:
+        if st.button("🔄 Force Refresh Data"):
+            st.cache_data.clear(); st.rerun()
