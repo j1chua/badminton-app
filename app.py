@@ -136,4 +136,5 @@ if show_hidden_tabs:
             st.success("Access Granted")
             # ... (Rest of your original Form/Save logic goes here) ...
 else:
-    with t4:
+    with t4: st.info("Finals results will be available after Day 2.")
+    with t5: st.info("Admin access restricted.")
