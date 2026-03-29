@@ -180,7 +180,11 @@ if sch is not None:
                     for _, r in black_playoffs.iterrows():
                         d = csv_db.get(r["ID"])
                         p1_disp, p2_disp = r['P1'], r['P2']
+                        
                         if d and d['started']:
+                            # HIGHLIGHT WINNER LOGIC
+                            if d['w1'] > d['w2']: p1_disp = f"🏆 <span class='winner-text'>{r['P1']}</span>"
+                            elif d['w2'] > d['w1']: p2_disp = f"🏆 <span class='winner-text'>{r['P2']}</span>"
                             s1, s2 = f"{d['s1']}-{d['s3']}", f"{d['s2']}-{d['s4']}"
                         else:
                             s1 = s2 = '<span class="status-pending">TBD</span>'
